@@ -1,24 +1,60 @@
-import logo from './logo.svg';
-import './App.css';
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import LoginPage from "./pages/LoginPage";
+import RegisterPage from "./pages/RegisterPage";
+import Dashboard from "./pages/Dashboard";
+import Layout from "./components/Layout";
+import {createTheme, CssBaseline, ThemeProvider} from "@mui/material";
+import { AuthProvider } from './context/AuthContext';
+import ProtectedRoute from './components/ProtectedRoute';
+import PublicRoute from './components/PublicRoute';
+import { Provider } from 'react-bus';
+import FileInfoPage from "./pages/FileInfoPage";
+
+
+const theme = createTheme({
+    palette: {
+        mode: 'light',
+        primary: {
+            main: '#1976d2',
+        },
+        secondary: {
+            main: '#dc004e',
+        },
+    },
+});
 
 function App() {
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
+      <Provider>
+          <ThemeProvider theme={theme}>
+              <CssBaseline />
+              <BrowserRouter>
+                  <AuthProvider>
+                      <Routes>
+                          <Route path="/login" element={
+                              <PublicRoute>
+                                <LoginPage />
+                              </PublicRoute>
+                          } />
+                          <Route path="/register" element={
+                              <PublicRoute>
+                                <RegisterPage />
+                              </PublicRoute>
+                          } />
+
+                          <Route path="/" element={
+                              <ProtectedRoute>
+                                <Layout />
+                              </ProtectedRoute>
+                          }>
+                              <Route index element={<Dashboard />} />
+                              <Route path="file/:fileId" element={<FileInfoPage />} />
+                          </Route>
+                      </Routes>
+                  </AuthProvider>
+              </BrowserRouter>
+          </ThemeProvider>
+      </Provider>
   );
 }
 
