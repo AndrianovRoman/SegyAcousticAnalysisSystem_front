@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { TextField, Button, Container, Typography, Link, Alert } from "@mui/material";
+import { TextField, Button, Container, Typography, Link, Alert, Box } from "@mui/material";
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useBus } from 'react-bus';
 import './loginPage.css';
 
 export default function LoginPage() {
@@ -11,6 +12,7 @@ export default function LoginPage() {
     const [loading, setLoading] = useState(false);
     const { login } = useAuth();
     const navigate = useNavigate();
+    const bus = useBus();
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -25,6 +27,11 @@ export default function LoginPage() {
             setError(result.error || 'Ошибка входа');
         }
         setLoading(false);
+    };
+
+    const handleOpenForgotPassword = () => {
+        console.log("open")
+        bus.emit('openForgotPasswordModal');
     };
 
     return (
@@ -68,6 +75,9 @@ export default function LoginPage() {
 
             <div style={{ marginTop: "15px", color: "grey" }}>
                 У вас нет аккаунта? <Link component={RouterLink} to="/register" >Регистрация</Link>
+            </div>
+            <div style={{ marginTop: "15px", color: "grey" }}>
+                Забыли пароль? <Link component="button" onClick={handleOpenForgotPassword} style={{ cursor: 'pointer', marginLeft: '5px' }}>Сбросить пароль</Link>
             </div>
         </Container>
     );

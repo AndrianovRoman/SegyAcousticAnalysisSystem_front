@@ -1,7 +1,6 @@
-
-
-import { Box, Paper, Typography, TextField, Button, FormControlLabel, Switch } from '@mui/material';
-import { TrendingUp as GainIcon, Equalizer as CorrectionIcon } from '@mui/icons-material';
+import { useState } from 'react';
+import { Box, Paper, Typography, TextField, Button, FormControlLabel, Switch, Divider } from '@mui/material';
+import { TrendingUp as GainIcon, Equalizer as CorrectionIcon, RemoveCircle as DcIcon, AutoFixHigh as StaticIcon } from '@mui/icons-material';
 
 export default function SignalProcessing({
                                              gainValue, setGainValue,
@@ -9,47 +8,169 @@ export default function SignalProcessing({
                                              showGrid, setShowGrid,
                                              onApplyGain,
                                              onApplyCorrection,
-                                             onResetProcessing
+                                             onApplyDcRemoval,
+                                             onApplyStaticCorrection,
+                                             onResetProcessing,
+                                             isDcRemoval,
+                                             isStaticCorrection
                                          }) {
+    // Локальные состояния для включения фильтров
+    const [isGainEnabled, setIsGainEnabled] = useState(false);
+    const [isCorrectionEnabled, setIsCorrectionEnabled] = useState(false);
+    // Сохраняем значения до применения
+    const [savedGainValue, setSavedGainValue] = useState(1);
+    const [savedCorrectionValue, setSavedCorrectionValue] = useState(0);
+
+    const handleGainToggle = (checked) => {
+        setIsGainEnabled(checked);
+        if (checked) {
+            // Включаем: применяем текущее значение
+            setSavedGainValue(gainValue);
+            onApplyGain();
+        } else {
+            // Выключаем: применяем значение 1 (нет усиления)
+            setGainValue(1);
+            onApplyGain(); // Это применит gainValue=1
+        }
+    };
+
+    const handleCorrectionToggle = (checked) => {
+        setIsCorrectionEnabled(checked);
+        if (checked) {
+            setSavedCorrectionValue(correctionValue);
+            onApplyCorrection();
+        } else {
+            setCorrectionValue(0);
+            onApplyCorrection(); // Это применит correctionValue=0
+        }
+    };
+
+    const handleGainValueChange = (newValue) => {
+        setGainValue(newValue);
+        if (isGainEnabled) {
+            onApplyGain(); // Автоматически применяем при изменении значения
+        }
+    };
+
+    const handleCorrectionValueChange = (newValue) => {
+        setCorrectionValue(newValue);
+        if (isCorrectionEnabled) {
+            onApplyCorrection(); // Автоматически применяем при изменении значения
+        }
+    };
+
+    const handleResetAll = () => {
+        setIsGainEnabled(false);
+        setIsCorrectionEnabled(false);
+        setGainValue(1);
+        setCorrectionValue(0);
+        setSavedGainValue(1);
+        setSavedCorrectionValue(0);
+        onResetProcessing();
+    };
+
     return (
         <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
             <Typography variant="subtitle2" gutterBottom>Обработка сигнала</Typography>
-            <Box display="flex" alignItems="center" flexWrap="wrap" gap={3}>
-                <Box display="flex" alignItems="center" gap={1}>
-                    <Typography variant="body2">Усиление:</Typography>
+
+            <Box style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {/* Фильтры первого уровня */}
+                <Box style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
+                    <FormControlLabel
+                        control={
+                            <Switch
+                                checked={isDcRemoval}
+                                onChange={(e) => onApplyDcRemoval(e.target.checked)}
+                                size="small"
+                                color="primary"
+                            />
+                        }
+                        label={
+                            <Typography variant="body2">Удаление постоянной составляющей</Typography>
+                        }
+                    />
+
+                    <FormControlLabel
+                        control={
+                            <Switch
+                                checked={isStaticCorrection}
+                                onChange={(e) => onApplyStaticCorrection(e.target.checked)}
+                                size="small"
+                                color="primary"
+                            />
+                        }
+                        label={
+                            <Typography variant="body2">Автостатическая поправка</Typography>
+                        }
+                    />
+
+                    <Divider orientation="vertical" flexItem />
+
+                    <FormControlLabel
+                        control={<Switch checked={showGrid} onChange={(e) => setShowGrid(e.target.checked)} size="small" />}
+                        label="Сетка"
+                    />
+                </Box>
+
+                <Divider />
+
+                {/* Усиление сигнала */}
+                <Box style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                    <FormControlLabel
+                        control={
+                            <Switch
+                                checked={isGainEnabled}
+                                onChange={(e) => handleGainToggle(e.target.checked)}
+                                size="small"
+                                color="secondary"
+                            />
+                        }
+                        label="Усиление сигнала"
+                    />
                     <TextField
                         size="small"
                         type="number"
+                        label="Коэффициент"
                         value={gainValue}
-                        onChange={(e) => setGainValue(parseFloat(e.target.value) || 1)}
-                        sx={{ width: 80 }}
+                        onChange={(e) => handleGainValueChange(parseFloat(e.target.value) || 1)}
+                        disabled={!isGainEnabled}
+                        sx={{ width: 120 }}
                         InputProps={{ inputProps: { min: 0.1, step: 0.5 } }}
                     />
-                    <Button variant="outlined" size="small" onClick={onApplyGain}>
-                        <GainIcon fontSize="small" sx={{ mr: 0.5 }} /> Применить
-                    </Button>
                 </Box>
-                <Box display="flex" alignItems="center" gap={1}>
-                    <Typography variant="body2">Коррекция:</Typography>
+
+                {/* Амплитудная коррекция */}
+                <Box style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                    <FormControlLabel
+                        control={
+                            <Switch
+                                checked={isCorrectionEnabled}
+                                onChange={(e) => handleCorrectionToggle(e.target.checked)}
+                                size="small"
+                                color="secondary"
+                            />
+                        }
+                        label="Амплитудная коррекция"
+                    />
                     <TextField
                         size="small"
                         type="number"
+                        label="Коэффициент"
                         value={correctionValue}
-                        onChange={(e) => setCorrectionValue(parseFloat(e.target.value) || 0)}
-                        sx={{ width: 80 }}
+                        onChange={(e) => handleCorrectionValueChange(parseFloat(e.target.value) || 0)}
+                        disabled={!isCorrectionEnabled}
+                        sx={{ width: 120 }}
                         InputProps={{ inputProps: { min: 0, step: 50 } }}
                     />
-                    <Button variant="outlined" size="small" onClick={onApplyCorrection}>
-                        <CorrectionIcon fontSize="small" sx={{ mr: 0.5 }} /> Применить
+                </Box>
+
+                <Divider />
+
+                <Box display="flex" justifyContent="flex-end">
+                    <Button variant="outlined" size="small" color="warning" onClick={handleResetAll}>
+                        Сбросить все фильтры
                     </Button>
                 </Box>
-                <Button variant="outlined" size="small" color="warning" onClick={onResetProcessing}>
-                    Сбросить обработку
-                </Button>
-                <FormControlLabel
-                    control={<Switch checked={showGrid} onChange={(e) => setShowGrid(e.target.checked)} size="small" />}
-                    label="Сетка"
-                />
             </Box>
         </Paper>
     );

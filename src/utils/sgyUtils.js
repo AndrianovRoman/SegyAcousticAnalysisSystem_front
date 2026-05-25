@@ -1,4 +1,3 @@
-
 import fft from 'fft-js';
 
 // Генерация тестовых данных
@@ -37,18 +36,24 @@ export const buildChartData = (traces, timeAxis, maxAmplitude, isGainApplied, ga
     const colors = ['#1976d2', '#dc004e', '#2e7d32', '#ed6c02', '#9c27b0'];
 
     return traces.map((trace, idx) => {
-        let normalizedY;
+        let yValues = [...trace];
+
+        // Применяем усиление (если включено)
         if (isGainApplied && gainValue !== 1) {
-            normalizedY = trace.map(value => ((value / maxAmplitude) * gainValue) + idx + 1);
-        } else if (isCorrectionApplied && correctionValue > 0) {
-            const avg = trace.reduce((a, b) => a + b, 0) / trace.length;
-            normalizedY = trace.map((value, j) => {
-                const gain = Math.exp(timeAxis[j] * correctionValue);
-                return ((value - avg) * gain / maxAmplitude) + idx + 1;
-            });
-        } else {
-            normalizedY = trace.map(value => (value / maxAmplitude) + idx + 1);
+            yValues = yValues.map(v => v * gainValue);
         }
+
+        // Применяем амплитудную коррекцию (если включена)
+        if (isCorrectionApplied && correctionValue > 0) {
+            const avg = yValues.reduce((a, b) => a + b, 0) / yValues.length;
+            yValues = yValues.map((v, j) => {
+                const gain = Math.exp(timeAxis[j] * correctionValue);
+                return (v - avg) * gain;
+            });
+        }
+
+        // Нормализация и смещение
+        const normalizedY = yValues.map(value => (value / maxAmplitude) + idx + 1);
 
         return {
             name: `Трасса ${idx + 1}`,

@@ -55,8 +55,8 @@ export default function PointFormModal() {
     const fillForm = (point) => {
         console.log('point', point)
         setPointName(point.pointName || point.name || '');
-        setX(point.x || '');
-        setY(point.y || '');
+        setX(point.x !== undefined && point.x !== null ? String(point.x) : '');
+        setY(point.y !== undefined && point.y !== null ? String(point.y) : '');
         setDescription(point.description || '');
     };
 

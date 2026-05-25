@@ -9,6 +9,8 @@ import ProtectedRoute from './components/ProtectedRoute';
 import PublicRoute from './components/PublicRoute';
 import { Provider } from 'react-bus';
 import FileInfoPage from "./pages/FileInfoPage";
+import ForgotPasswordModal from "./components/modals/ForgotPasswordModal";
+import ResetPasswordPage from "./pages/ResetPasswordPage";
 
 
 const theme = createTheme({
@@ -30,6 +32,7 @@ function App() {
               <CssBaseline />
               <BrowserRouter>
                   <AuthProvider>
+                      <ForgotPasswordModal />
                       <Routes>
                           <Route path="/login" element={
                               <PublicRoute>
@@ -39,6 +42,11 @@ function App() {
                           <Route path="/register" element={
                               <PublicRoute>
                                 <RegisterPage />
+                              </PublicRoute>
+                          } />
+                          <Route path="/reset-password" element={
+                              <PublicRoute>
+                                  <ResetPasswordPage />
                               </PublicRoute>
                           } />
 

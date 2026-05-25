@@ -4,7 +4,6 @@ import { Container, Paper, Box, Breadcrumbs, Link, Typography, Button, CircularP
 import { useBus } from 'react-bus';
 import Plotly from 'plotly.js-dist';
 import api from '../api/axios';
-import { useSgyData } from '../hooks/useSgyData';
 import { buildChartData, buildChartLayout, calculatePileLength, calculateWaveSpeed, generateTestData } from '../utils/sgyUtils';
 import FileHeader from '../components/files/FileHeader';
 import FileInfoCards from '../components/files/FileInfoCards';
@@ -19,8 +18,8 @@ export default function FileInfoPage() {
     const location = useLocation();
     const navigate = useNavigate();
     const bus = useBus();
+
     const pointId = location.state?.pointId;
-    const elementId = location.state?.elementId;
 
     // Состояния для UI
     const [showGrid, setShowGrid] = useState(true);
@@ -28,8 +27,12 @@ export default function FileInfoPage() {
     const [endMarker, setEndMarker] = useState(null);
     const [pileLength, setPileLength] = useState(0);
     const [markerMode, setMarkerMode] = useState('start');
+
+    // Состояния для фильтров
     const [gainValue, setGainValue] = useState(1);
     const [correctionValue, setCorrectionValue] = useState(0);
+    const [isDcRemoval, setIsDcRemoval] = useState(false);
+    const [isStaticCorrection, setIsStaticCorrection] = useState(false);
     const [isGainApplied, setIsGainApplied] = useState(false);
     const [isCorrectionApplied, setIsCorrectionApplied] = useState(false);
 
@@ -48,75 +51,233 @@ export default function FileInfoPage() {
     const [pointsCoords, setPointsCoords] = useState([]);
     const [isCalculating, setIsCalculating] = useState(false);
 
+    // Состояния из данных файла
+    const [fileData, setFileData] = useState(null);
+    const [elementId, setElementId] = useState(null);
+    const [elementType, setElementType] = useState(null);
+    const [originalTraces, setOriginalTraces] = useState([]);
+    const [timeAxis, setTimeAxis] = useState([]);
+    const [maxAmplitude, setMaxAmplitude] = useState(1);
+    const [samplesCount, setSamplesCount] = useState(0);
+    const [intervalUs, setIntervalUs] = useState(0);
+    const [waveSpeed, setWaveSpeed] = useState(4000);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+
     const plotRef = useRef(null);
     const canvasRef = useRef(null);
 
     // Загрузка данных
-    const { loading, error, file, elementType, originalTraces, timeAxis, maxAmplitude, samplesCount, intervalUs, waveSpeed, setWaveSpeed } = useSgyData(fileId, pointId, elementId);
+    useEffect(() => {
+        const fetchData = async () => {
+            if (!pointId || !fileId) return;
 
-    // Сброс маркеров при смене файла
+            setLoading(true);
+
+            try {
+                // 1. Получаем информацию о файле
+                const fileResponse = await api.get(`/api/points/${pointId}/files/${fileId}`);
+                const fileData = fileResponse.data;
+                setFileData(fileData);
+                setElementId(fileData.elementId);
+                setElementType(fileData.elementType);
+
+                // 2. Если это плита и есть elementId, сразу загружаем точки
+                if (fileData.elementType === 'slab' && fileData.elementId) {
+                    console.log('📡 Загружаем точки для плиты сразу после получения файла');
+                    console.log('elementId:', fileData.elementId);
+
+                    try {
+                        const pointsResponse = await api.get(`/api/elements/${fileData.elementId}/points`);
+                        console.log('📦 Ответ от сервера (точки):', pointsResponse.data);
+
+                        const points = pointsResponse.data.map(p => ({
+                            id: p.id,
+                            x: p.x,
+                            y: p.y,
+                            name: p.pointName
+                        }));
+                        setPointsCoords(points);
+                        console.log('✅ Загружено точек:', points.length);
+                    } catch (pointsErr) {
+                        console.error('Ошибка загрузки точек:', pointsErr);
+                        bus.emit('error', 'Не удалось загрузить точки для плиты');
+                    }
+                }
+
+                // 3. Парсим SGY данные
+                const parseRes = await api.post(`/api/points/${pointId}/files/${fileId}/parse?includeSamples=true`);
+                const parseData = parseRes.data;
+
+                const samples = parseData.binaryHeader?.samplesPerTrace || 2048;
+                const interval = parseData.binaryHeader?.sampleIntervalMicroseconds || 31;
+                setSamplesCount(samples);
+                setIntervalUs(interval);
+
+                const time = Array.from({ length: samples }, (_, i) => (i * interval) / 1000000);
+                setTimeAxis(time);
+
+                let traces = [];
+                let maxAmp = 0;
+
+                if (parseData.traces && parseData.traces.length > 0) {
+                    for (let t = 0; t < parseData.traces.length; t++) {
+                        const trace = parseData.traces[t];
+
+                        let amplitudes = [];
+                        if (trace.samples && trace.samples.length > 0) {
+                            amplitudes = trace.samples;
+                        } else if (trace.samplePreview && trace.samplePreview.length > 0) {
+                            amplitudes = trace.samplePreview;
+                        }
+
+                        if (amplitudes.length > 0) {
+                            if (amplitudes.length < samples) {
+                                const interpolated = new Array(samples);
+                                const step = (amplitudes.length - 1) / (samples - 1);
+                                for (let i = 0; i < samples; i++) {
+                                    const index = i * step;
+                                    const idx1 = Math.floor(index);
+                                    const idx2 = Math.min(idx1 + 1, amplitudes.length - 1);
+                                    const fraction = index - idx1;
+                                    interpolated[i] = amplitudes[idx1] * (1 - fraction) + amplitudes[idx2] * fraction;
+                                }
+                                amplitudes = interpolated;
+                            } else if (amplitudes.length > samples) {
+                                amplitudes = amplitudes.slice(0, samples);
+                            }
+
+                            traces.push(amplitudes);
+                            const traceMax = Math.max(...amplitudes.map(Math.abs));
+                            if (traceMax > maxAmp) maxAmp = traceMax;
+                        }
+                    }
+                }
+
+                if (traces.length === 0) {
+                    const testData = generateTestData(samples, interval);
+                    traces = [testData];
+                    maxAmp = Math.max(...testData.map(Math.abs));
+                }
+
+                console.log(`Загружено трасс: ${traces.length}`);
+                setOriginalTraces(traces);
+                setMaxAmplitude(maxAmp);
+
+                const speedMatch = parseData.textHeaderContent?.match(/waveSpeed:\s*(\d+)/);
+                if (speedMatch) {
+                    setWaveSpeed(parseInt(speedMatch[1]));
+                }
+
+            } catch (err) {
+                console.error('Ошибка загрузки:', err);
+                setError(err.response?.data?.message || 'Не удалось загрузить файл');
+                bus.emit('error', 'Не удалось загрузить файл');
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchData();
+    }, [pointId, fileId]);
+
+    // Сброс маркеров и фильтров при смене файла
     useEffect(() => {
         setStartMarker(null);
         setEndMarker(null);
         setPileLength(0);
+        setIsDcRemoval(false);
+        setIsStaticCorrection(false);
         setIsGainApplied(false);
         setIsCorrectionApplied(false);
         setGainValue(1);
         setCorrectionValue(0);
         setHeatmapData(null);
         setShowLegend(false);
+        setPointsCoords([]);
     }, [fileId]);
 
-    // Загрузка координат точек для плиты
-    useEffect(() => {
-        const fetchPointsCoordinates = async () => {
-            console.log('elementId', elementId)
-            if (!elementId || elementType !== 'slab') return;
-
-            try {
-                // Получаем все точки элемента
-                const response = await api.get(`/api/elements/${elementId}/points`);
-                console.log('response.data', response.data)
-                const points = response.data.map(p => ({
-                    id: p.id,
-                    x: p.x,
-                    y: p.y,
-                    name: p.pointName
-                }));
-                console.log('points', points)
-                setPointsCoords(points);
-            } catch (err) {
-                console.error('Ошибка загрузки координат точек:', err);
-                bus.emit('error', 'Не удалось загрузить данные для плиты');
-            }
-        };
-
-        fetchPointsCoordinates();
-    }, [elementId, elementType]);
-
-    // Обновление графика
+    // Функция применения всех фильтров
     const updateChart = useCallback(() => {
         if (!originalTraces.length || !timeAxis.length) return;
 
-        const data = buildChartData(originalTraces, timeAxis, maxAmplitude, isGainApplied, gainValue, isCorrectionApplied, correctionValue);
+        let tracesForChart = [...originalTraces];
+
+        if (isDcRemoval) {
+            tracesForChart = tracesForChart.map(trace => {
+                const avg = trace.reduce((a, b) => a + b, 0) / trace.length;
+                return trace.map(v => v - avg);
+            });
+        }
+
+        if (isStaticCorrection && tracesForChart.length > 1) {
+            const findPeakIndex = (signal) => {
+                let maxIndex = 0;
+                let maxValue = Math.abs(signal[0]);
+                for (let i = 1; i < signal.length; i++) {
+                    if (Math.abs(signal[i]) > maxValue) {
+                        maxValue = Math.abs(signal[i]);
+                        maxIndex = i;
+                    }
+                }
+                return maxIndex;
+            };
+
+            const firstTracePeakIndex = findPeakIndex(tracesForChart[0]);
+            const firstTracePeakTime = timeAxis[firstTracePeakIndex];
+
+            tracesForChart = tracesForChart.map(trace => {
+                const peakIndex = findPeakIndex(trace);
+                const peakTime = timeAxis[peakIndex];
+                const diff = peakTime - firstTracePeakTime;
+                if (Math.abs(diff) < 0.000001) return trace;
+
+                const shifted = new Array(trace.length);
+                for (let i = 0; i < trace.length; i++) {
+                    const newTime = timeAxis[i] - diff;
+                    if (newTime <= timeAxis[0]) {
+                        shifted[i] = trace[0];
+                    } else if (newTime >= timeAxis[timeAxis.length - 1]) {
+                        shifted[i] = trace[trace.length - 1];
+                    } else {
+                        let idx = 1;
+                        while (idx < timeAxis.length && timeAxis[idx] < newTime) idx++;
+                        const t1 = timeAxis[idx - 1];
+                        const t2 = timeAxis[idx];
+                        const v1 = trace[idx - 1];
+                        const v2 = trace[idx];
+                        shifted[i] = v1 + (v2 - v1) * (newTime - t1) / (t2 - t1);
+                    }
+                }
+                return shifted;
+            });
+        }
+
+        let maxAmp = Math.max(...tracesForChart.flat().map(Math.abs));
+        if (maxAmp === 0) maxAmp = 1;
+
+        const data = buildChartData(
+            tracesForChart, timeAxis, maxAmp,
+            isGainApplied, gainValue,
+            isCorrectionApplied, correctionValue
+        );
         setGraphData(data);
 
         const layout = buildChartLayout(
-            file?.fileName || 'Сигнал',
+            fileData?.fileName || 'Сигнал',
             startMarker, endMarker, showGrid,
             [0, timeAxis[timeAxis.length - 1] || 0.03],
             originalTraces.length,
             pileLength
         );
         setGraphLayout(layout);
-    }, [originalTraces, timeAxis, maxAmplitude, isGainApplied, isCorrectionApplied, gainValue, correctionValue, showGrid, startMarker, endMarker, pileLength, file]);
+    }, [originalTraces, timeAxis, isDcRemoval, isStaticCorrection, isGainApplied, gainValue, isCorrectionApplied, correctionValue, showGrid, startMarker, endMarker, pileLength, fileData]);
 
-    // Обновление при изменении параметров
     useEffect(() => {
         updateChart();
     }, [updateChart]);
 
-    // Обработчики для сваи
+    // Обработчики
     const handlePlotClick = (event) => {
         if (elementType === 'pile' && event.points && event.points.length > 0) {
             const x = event.points[0].x;
@@ -159,7 +320,6 @@ export default function FileInfoPage() {
             return;
         }
         setIsGainApplied(true);
-        setIsCorrectionApplied(false);
         bus.emit('success', `Усиление сигнала (x${gainValue}) применено`);
     };
 
@@ -169,11 +329,22 @@ export default function FileInfoPage() {
             return;
         }
         setIsCorrectionApplied(true);
-        setIsGainApplied(false);
         bus.emit('success', `Амплитудная коррекция (коэф. ${correctionValue}) применена`);
     };
 
+    const handleApplyDcRemoval = (checked) => {
+        setIsDcRemoval(checked);
+        bus.emit('info', checked ? 'Удаление постоянной составляющей включено' : 'Удаление постоянной составляющей выключено');
+    };
+
+    const handleApplyStaticCorrection = (checked) => {
+        setIsStaticCorrection(checked);
+        bus.emit('info', checked ? 'Автостатическая поправка включена' : 'Автостатическая поправка выключена');
+    };
+
     const handleResetProcessing = () => {
+        setIsDcRemoval(false);
+        setIsStaticCorrection(false);
         setIsGainApplied(false);
         setIsCorrectionApplied(false);
         setGainValue(1);
@@ -202,7 +373,16 @@ export default function FileInfoPage() {
         }
 
         try {
-            const imageData = await Plotly.toImage(plotRef.current, {
+            // ✅ Получаем DOM-элемент
+            const plotElement = plotRef.current;
+            const plotDiv = plotElement?.el || plotElement;
+
+            if (!plotDiv) {
+                bus.emit('error', 'Не удалось найти элемент графика');
+                return;
+            }
+
+            const imageData = await Plotly.toImage(plotDiv, {
                 format: 'png',
                 width: 1200,
                 height: 700,
@@ -210,7 +390,7 @@ export default function FileInfoPage() {
             });
 
             const link = document.createElement('a');
-            link.download = `sgy_graph_${file?.fileName || 'signal'}.png`;
+            link.download = `sgy_graph_${fileData?.fileName || 'signal'}.png`;
             link.href = imageData;
             link.click();
             bus.emit('success', 'График сохранен');
@@ -387,7 +567,7 @@ export default function FileInfoPage() {
     };
 
     const calculateAttributesForPoints = async () => {
-        console.log('pointsCoords', pointsCoords)
+        console.log('pointsCoords', pointsCoords);
         if (pointsCoords.length === 0) {
             bus.emit('error', 'Нет данных для анализа плиты');
             return;
@@ -399,7 +579,6 @@ export default function FileInfoPage() {
             const results = [];
             for (const point of pointsCoords) {
                 try {
-                    // Получаем файлы для точки
                     const filesRes = await api.get(`/api/points/${point.id}/files`);
                     if (filesRes.data.length === 0) continue;
 
@@ -430,7 +609,7 @@ export default function FileInfoPage() {
                     console.error(`Ошибка обработки точки ${point.id}:`, err);
                 }
             }
-            console.log('results', results)
+            console.log('results', results);
 
             if (results.length === 0) {
                 bus.emit('error', 'Не удалось рассчитать атрибуты');
@@ -460,9 +639,6 @@ export default function FileInfoPage() {
             console.log('minValue:', minValue);
             console.log('maxValue:', maxValue);
             console.log('Значения в матрице (первые 10):', matrix.flat().slice(0, 10));
-            console.log('Есть ли значения вне диапазона:',
-                matrix.flat().some(v => v < minValue || v > maxValue)
-            );
         } catch (err) {
             console.error('Ошибка расчета атрибутов:', err);
             bus.emit('error', 'Не удалось рассчитать атрибуты для плиты');
@@ -497,55 +673,48 @@ export default function FileInfoPage() {
     return (
         <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
             <Paper sx={{ p: 3 }}>
-                {/* Хлебные крошки */}
                 <Box mb={3}>
                     <Breadcrumbs>
                         <Link color="inherit" onClick={() => navigate('/')} sx={{ cursor: 'pointer' }}>Главная</Link>
-                        <Typography color="textPrimary">Файл: {file?.fileName}</Typography>
+                        <Typography color="textPrimary">Файл: {fileData?.fileName}</Typography>
                     </Breadcrumbs>
                 </Box>
 
-                {/* Шапка */}
                 <FileHeader
-                    fileName={file?.fileName}
+                    fileName={fileData?.fileName}
                     elementType={elementType}
                     onResetAll={handleResetAll}
                     onExportGraph={handleExportGraph}
                     onClearMarkers={handleClearMarkers}
                 />
 
-                {/* Информационные карточки */}
                 <FileInfoCards
-                    file={file}
+                    file={fileData}
                     samplesCount={samplesCount}
                     intervalUs={intervalUs}
                     tracesCount={tracesCount}
                     elementType={elementType}
                 />
 
-                {/* Анализ для сваи */}
                 {isPile && (
                     <Grid container spacing={2} sx={{ mb: 4 }}>
-                        <Grid item xs={12} md={6}>
-                            <PileAnalysis
-                                startMarker={startMarker}
-                                setStartMarker={setStartMarker}
-                                endMarker={endMarker}
-                                setEndMarker={setEndMarker}
-                                waveSpeed={waveSpeed}
-                                setWaveSpeed={setWaveSpeed}
-                                pileLength={pileLength}
-                                setPileLength={setPileLength}
-                                markerMode={markerMode}
-                                setMarkerMode={setMarkerMode}
-                                onCalculateLength={handleCalculateLength}
-                                onCalculateSpeed={handleCalculateSpeed}
-                            />
-                        </Grid>
+                        <PileAnalysis
+                            startMarker={startMarker}
+                            setStartMarker={setStartMarker}
+                            endMarker={endMarker}
+                            setEndMarker={setEndMarker}
+                            waveSpeed={waveSpeed}
+                            setWaveSpeed={setWaveSpeed}
+                            pileLength={pileLength}
+                            setPileLength={setPileLength}
+                            markerMode={markerMode}
+                            setMarkerMode={setMarkerMode}
+                            onCalculateLength={handleCalculateLength}
+                            onCalculateSpeed={handleCalculateSpeed}
+                        />
                     </Grid>
                 )}
 
-                {/* Анализ для плиты */}
                 {isSlab && (
                     <SlabAnalysis
                         pointsCoords={pointsCoords}
@@ -565,31 +734,6 @@ export default function FileInfoPage() {
                     />
                 )}
 
-                {/* Обработка сигнала (только для сваи) */}
-                {isPile && (
-                    <SignalProcessing
-                        gainValue={gainValue}
-                        setGainValue={setGainValue}
-                        correctionValue={correctionValue}
-                        setCorrectionValue={setCorrectionValue}
-                        showGrid={showGrid}
-                        setShowGrid={setShowGrid}
-                        onApplyGain={handleApplyGain}
-                        onApplyCorrection={handleApplyCorrection}
-                        onResetProcessing={handleResetProcessing}
-                    />
-                )}
-
-                {/* График */}
-                <SignalChart
-                    plotRef={plotRef}
-                    graphData={graphData}
-                    graphLayout={graphLayout}
-                    onPlotClick={handlePlotClick}
-                    isLoading={loading}
-                />
-
-                {/* Тепловая карта для плиты */}
                 {isSlab && heatmapData && (
                     <Paper sx={{ p: 2, mt: 3, bgcolor: '#fafafa', textAlign: 'center' }}>
                         <Typography variant="subtitle2" gutterBottom>Тепловая карта состояния плиты</Typography>
@@ -609,7 +753,32 @@ export default function FileInfoPage() {
                     </Paper>
                 )}
 
-                {/* Подсказка */}
+                {isPile && (
+                    <SignalProcessing
+                        gainValue={gainValue}
+                        setGainValue={setGainValue}
+                        correctionValue={correctionValue}
+                        setCorrectionValue={setCorrectionValue}
+                        showGrid={showGrid}
+                        setShowGrid={setShowGrid}
+                        onApplyGain={handleApplyGain}
+                        onApplyCorrection={handleApplyCorrection}
+                        onApplyDcRemoval={handleApplyDcRemoval}
+                        onApplyStaticCorrection={handleApplyStaticCorrection}
+                        onResetProcessing={handleResetProcessing}
+                        isDcRemoval={isDcRemoval}
+                        isStaticCorrection={isStaticCorrection}
+                    />
+                )}
+
+                <SignalChart
+                    plotRef={plotRef}
+                    graphData={graphData}
+                    graphLayout={graphLayout}
+                    onPlotClick={handlePlotClick}
+                    isLoading={loading}
+                />
+
                 <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2 }}>
                     💡 {isPile ? 'Кликните по графику, чтобы установить маркер' : isSlab ? 'Выберите атрибут и нажмите "Построить карту"' : 'Загрузите файл для анализа'}
                 </Typography>

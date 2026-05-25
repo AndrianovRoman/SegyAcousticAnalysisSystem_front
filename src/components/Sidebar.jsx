@@ -185,37 +185,20 @@ export default function Sidebar(props) {
     // Фабрика для создания обработчиков CRUD операций
     const createEntityHandlers = (config) => {
         return {
-            onAdded: async (newItem) => {
+            onAdded: (newItem) => {
                 console.log(`${config.type} added:`, newItem);
-                try {
-                    const response = await api.get(config.refreshEndpoint(newItem));
-                    const updatedChildren = response.data.map(el => ({
-                        ...el,
-                        typeLevel: config.childType,
-                        name: el[config.nameField],
-                        children: []
-                    }));
 
-                    setTreeData(prevTree => {
-                        const updateParentChildren = (nodes) => {
-                            return nodes.map(node => {
-                                if (node.id === newItem[config.parentIdField] && node.typeLevel === config.parentType) {
-                                    return { ...node, children: updatedChildren };
-                                }
-                                if (node.children && node.children.length > 0) {
-                                    return { ...node, children: updateParentChildren(node.children) };
-                                }
-                                return node;
-                            });
-                        };
-                        return updateParentChildren(prevTree);
-                    });
+                // ✅ Добавляем нового ребенка в дерево без перезагрузки
+                const newChild = {
+                    ...newItem,
+                    typeLevel: config.childType,
+                    name: newItem[config.nameField],
+                    children: []
+                };
 
-                    bus.emit('success', `${config.successMessage} "${newItem[config.nameField]}" успешно добавлен`);
-                } catch (error) {
-                    console.error('Error reloading:', error);
-                    bus.emit('error', `${config.successMessage} добавлен, но не удалось обновить список`);
-                }
+                // Добавляем ребенка к родителю
+                addChildToNode(newItem[config.parentIdField], config.parentType, newChild);
+                bus.emit('success', `${config.successMessage} "${newItem[config.nameField]}" успешно добавлен`);
             },
 
             onUpdated: (updatedItem) => {

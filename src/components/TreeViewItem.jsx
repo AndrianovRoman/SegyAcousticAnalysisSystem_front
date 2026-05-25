@@ -198,7 +198,7 @@ export default function TreeViewItem({item, level = 0, onEdit, onDelete, onAddCh
                 }}
                 onClick={handleClick}
             >
-                <div style={{ display: "flex", alignItems: "center", width: isObject ? "calc(100% - 180px)" : "calc(100% - 150px)" }}>
+                <div style={{ display: "flex", alignItems: "center", width: isObject ? "calc(100% - 210px)" : "calc(100% - 150px)" }}>
                     {getIcon()}
                     <ListItemText
                         primary={item.name || item.elementName || item.objectName}

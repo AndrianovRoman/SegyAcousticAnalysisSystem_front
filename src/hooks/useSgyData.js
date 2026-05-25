@@ -2,13 +2,12 @@ import { useState, useEffect } from 'react';
 import api from '../api/axios';
 import { generateTestData } from '../utils/sgyUtils';
 
-export const useSgyData = (fileId, pointId) => {
+export const useSgyData = (fileId, pointId, elementId) => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [file, setFile] = useState(null);
     const [sgyData, setSgyData] = useState(null);
     const [elementType, setElementType] = useState(null);
-    const [elementId, setElementId] = useState(null);
     const [originalTraces, setOriginalTraces] = useState([]);
     const [timeAxis, setTimeAxis] = useState([]);
     const [maxAmplitude, setMaxAmplitude] = useState(1);
@@ -31,20 +30,6 @@ export const useSgyData = (fileId, pointId) => {
                     setElementType(fileData.elementType);
                 }
 
-                // Получаем elementId из файла или из точки
-                if (fileData.elementId) {
-                    setElementId(fileData.elementId);
-                } else {
-                    // Пытаемся получить через точку
-                    try {
-                        // Получаем элемент по точке (нужно знать elementId)
-                        // Если у тебя нет такого эндпоинта, нужно передавать elementId через state
-                        console.log('elementId не найден в файле');
-                    } catch (err) {
-                        console.error('Ошибка получения elementId:', err);
-                    }
-                }
-
                 // Парсим SGY данные
                 const parseRes = await api.post(`/api/points/${pointId}/files/${fileId}/parse?includeSamples=true`);
                 const parseData = parseRes.data;
@@ -61,26 +46,50 @@ export const useSgyData = (fileId, pointId) => {
                 let traces = [];
                 let maxAmp = 0;
 
+                // ✅ ИСПРАВЛЕНО: Обрабатываем ВСЕ трассы
                 if (parseData.traces && parseData.traces.length > 0) {
-                    const trace = parseData.traces[0];
+                    for (let t = 0; t < parseData.traces.length; t++) {
+                        const trace = parseData.traces[t];
 
-                    if (trace.samples && trace.samples.length > 0) {
-                        traces = [trace.samples];
-                        maxAmp = Math.max(...trace.samples.map(Math.abs));
-                    } else if (trace.samplePreview && trace.samplePreview.length > 0) {
-                        traces = [trace.samplePreview];
-                        maxAmp = Math.max(...trace.samplePreview.map(Math.abs));
-                    } else {
-                        const testData = generateTestData(samples, interval);
-                        traces = [testData];
-                        maxAmp = Math.max(...testData.map(Math.abs));
+                        let amplitudes = [];
+                        if (trace.samples && trace.samples.length > 0) {
+                            amplitudes = trace.samples;
+                        } else if (trace.samplePreview && trace.samplePreview.length > 0) {
+                            amplitudes = trace.samplePreview;
+                        }
+
+                        if (amplitudes.length > 0) {
+                            // Если амплитуд меньше чем samples, интерполируем
+                            if (amplitudes.length < samples) {
+                                const interpolated = new Array(samples);
+                                const step = (amplitudes.length - 1) / (samples - 1);
+                                for (let i = 0; i < samples; i++) {
+                                    const index = i * step;
+                                    const idx1 = Math.floor(index);
+                                    const idx2 = Math.min(idx1 + 1, amplitudes.length - 1);
+                                    const fraction = index - idx1;
+                                    interpolated[i] = amplitudes[idx1] * (1 - fraction) + amplitudes[idx2] * fraction;
+                                }
+                                amplitudes = interpolated;
+                            } else if (amplitudes.length > samples) {
+                                amplitudes = amplitudes.slice(0, samples);
+                            }
+
+                            traces.push(amplitudes);
+                            const traceMax = Math.max(...amplitudes.map(Math.abs));
+                            if (traceMax > maxAmp) maxAmp = traceMax;
+                        }
                     }
-                } else {
+                }
+
+                // Если нет данных — генерируем тестовые
+                if (traces.length === 0) {
                     const testData = generateTestData(samples, interval);
                     traces = [testData];
                     maxAmp = Math.max(...testData.map(Math.abs));
                 }
 
+                console.log(`Загружено трасс: ${traces.length}`);
                 setOriginalTraces(traces);
                 setMaxAmplitude(maxAmp);
 
