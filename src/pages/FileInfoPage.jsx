@@ -84,12 +84,8 @@ export default function FileInfoPage() {
 
                 // 2. Если это плита и есть elementId, сразу загружаем точки
                 if (fileData.elementType === 'slab' && fileData.elementId) {
-                    console.log('📡 Загружаем точки для плиты сразу после получения файла');
-                    console.log('elementId:', fileData.elementId);
-
                     try {
                         const pointsResponse = await api.get(`/api/elements/${fileData.elementId}/points`);
-                        console.log('📦 Ответ от сервера (точки):', pointsResponse.data);
 
                         const points = pointsResponse.data.map(p => ({
                             id: p.id,
@@ -98,9 +94,7 @@ export default function FileInfoPage() {
                             name: p.pointName
                         }));
                         setPointsCoords(points);
-                        console.log('✅ Загружено точек:', points.length);
                     } catch (pointsErr) {
-                        console.error('Ошибка загрузки точек:', pointsErr);
                         bus.emit('error', 'Не удалось загрузить точки для плиты');
                     }
                 }
@@ -160,7 +154,6 @@ export default function FileInfoPage() {
                     maxAmp = Math.max(...testData.map(Math.abs));
                 }
 
-                console.log(`Загружено трасс: ${traces.length}`);
                 setOriginalTraces(traces);
                 setMaxAmplitude(maxAmp);
 
@@ -567,7 +560,6 @@ export default function FileInfoPage() {
     };
 
     const calculateAttributesForPoints = async () => {
-        console.log('pointsCoords', pointsCoords);
         if (pointsCoords.length === 0) {
             bus.emit('error', 'Нет данных для анализа плиты');
             return;
@@ -609,7 +601,6 @@ export default function FileInfoPage() {
                     console.error(`Ошибка обработки точки ${point.id}:`, err);
                 }
             }
-            console.log('results', results);
 
             if (results.length === 0) {
                 bus.emit('error', 'Не удалось рассчитать атрибуты');
@@ -636,11 +627,7 @@ export default function FileInfoPage() {
             setTimeout(() => drawHeatmap(matrix, xValues, yValues, minValue, maxValue), 100);
             bus.emit('success', 'Тепловая карта построена');
 
-            console.log('minValue:', minValue);
-            console.log('maxValue:', maxValue);
-            console.log('Значения в матрице (первые 10):', matrix.flat().slice(0, 10));
         } catch (err) {
-            console.error('Ошибка расчета атрибутов:', err);
             bus.emit('error', 'Не удалось рассчитать атрибуты для плиты');
         } finally {
             setIsCalculating(false);

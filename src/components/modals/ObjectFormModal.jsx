@@ -31,7 +31,6 @@ export default function ObjectFormModal() {
     });
 
     useListener('openEditObjectModal', (object) => {
-        console.log('object', object);
         setMode('edit');
         setObjectId(object.id);
         fillForm(object);

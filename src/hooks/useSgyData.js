@@ -89,7 +89,6 @@ export const useSgyData = (fileId, pointId, elementId) => {
                     maxAmp = Math.max(...testData.map(Math.abs));
                 }
 
-                console.log(`Загружено трасс: ${traces.length}`);
                 setOriginalTraces(traces);
                 setMaxAmplitude(maxAmp);
 

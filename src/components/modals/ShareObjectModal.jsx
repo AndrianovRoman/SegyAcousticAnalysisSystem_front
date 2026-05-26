@@ -33,7 +33,6 @@ export default function ShareObjectModal() {
     const { user } = useAuth();
 
     useListener('openShareObjectModal', (object) => {
-        console.log('openShareObjectModal:', object);
         setObjectId(object.id);
         setObjectName(object.name || object.objectName);
         resetForm();

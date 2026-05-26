@@ -37,7 +37,6 @@ export default function ElementFormModal() {
     ];
 
     useListener('openAddElementModal', (data) => {
-        console.log('openAddElementModal:', data);
         setMode('add');
         setParentObjectId(data.parentId);
         setParentObjectName(data.parentName || '');
@@ -46,7 +45,6 @@ export default function ElementFormModal() {
     });
 
     useListener('openEditElementModal', (element) => {
-        console.log('Редактирование элемента:', element);
         setMode('edit');
         setElementId(element.id);
         setParentObjectId(element.objectId || element.parentId);
@@ -143,12 +141,10 @@ export default function ElementFormModal() {
 
             if (mode === 'add') {
                 response = await api.post(`/api/objects/${parentObjectId}/elements`, requestData);
-                console.log(response.data);
                 bus.emit('elementAdded', response.data);
                 bus.emit('success', `Элемент "${elementName}" успешно добавлен`);
             } else {
                 response = await api.put(`/api/objects/${parentObjectId}/elements/${elementId}`, requestData);
-                console.log('response.data', response.data);
                 bus.emit('elementUpdated', response.data);
                 bus.emit('success', `Элемент "${elementName}" успешно обновлен`);
             }

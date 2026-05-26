@@ -21,7 +21,6 @@ export default function FileUploadModal() {
     const bus = useBus();
 
     useListener('openAddFileModal', (data) => {
-        console.log('openAddFileModal:', data);
         setPointId(data.parentId);
         setPointName(data.parentName || '');
         resetForm();
@@ -65,7 +64,6 @@ export default function FileUploadModal() {
         const formData = new FormData();
         formData.append('file', selectedFile);
         formData.append('description', description);
-        console.log('formData', formData);
 
         try {
             // Измененный эндпоинт: /api/points/{pointId}/files/upload

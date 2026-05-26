@@ -30,7 +30,6 @@ export default function LoginPage() {
     };
 
     const handleOpenForgotPassword = () => {
-        console.log("open")
         bus.emit('openForgotPasswordModal');
     };
 

@@ -24,7 +24,6 @@ export default function PointFormModal() {
 
     // Открытие модалки для создания точки
     useListener('openAddPointModal', (data) => {
-        console.log('openAddPointModal:', data);
         setMode('add');
         setParentElementId(data.parentId);
         setParentElementName(data.parentName || '');
@@ -34,7 +33,6 @@ export default function PointFormModal() {
 
     // Открытие модалки для редактирования точки
     useListener('openEditPointModal', (point) => {
-        console.log('Редактирование точки:', point);
         setMode('edit');
         setPointId(point.id);
         setParentElementId(point.elementId || point.parentId);
@@ -53,7 +51,6 @@ export default function PointFormModal() {
     };
 
     const fillForm = (point) => {
-        console.log('point', point)
         setPointName(point.pointName || point.name || '');
         setX(point.x !== undefined && point.x !== null ? String(point.x) : '');
         setY(point.y !== undefined && point.y !== null ? String(point.y) : '');
@@ -95,12 +92,10 @@ export default function PointFormModal() {
 
             if (mode === 'add') {
                 response = await api.post(`/api/elements/${parentElementId}/points`, requestData);
-                console.log('Point added:', response.data);
                 bus.emit('pointAdded', response.data);
                 bus.emit('success', `Точка "${pointName}" успешно добавлена`);
             } else {
                 response = await api.put(`/api/elements/${parentElementId}/points/${pointId}`, requestData);
-                console.log('Point updated:', response.data);
                 bus.emit('pointUpdated', response.data);
                 bus.emit('success', `Точка "${pointName}" успешно обновлена`);
             }

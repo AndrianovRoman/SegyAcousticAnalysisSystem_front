@@ -22,7 +22,6 @@ export default function ForgotPasswordModal() {
 
     // Слушаем событие открытия модалки
     useListener('openForgotPasswordModal', () => {
-        console.log('c.lf ljikb')
         setOpen(true);
         setEmail('');
         setError('');

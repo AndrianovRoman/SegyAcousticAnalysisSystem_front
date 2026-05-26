@@ -53,8 +53,6 @@ export default function Sidebar(props) {
 
     // Универсальная функция загрузки детей в зависимости от типа узла
     const loadChildrenForNode = async (node) => {
-        console.log('Loading children for node:', node);
-
         try {
             let response;
 
@@ -100,8 +98,6 @@ export default function Sidebar(props) {
 
     // Функция обновления узла (добавление детей)
     const handleUpdateNode = (parent, newChildren) => {
-        console.log('Updating node:', parent.id, 'with children:', newChildren);
-
         setTreeData(prevTree => {
             const updateNodeRecursive = (nodes) => {
                 return nodes.map(node => {
@@ -127,7 +123,6 @@ export default function Sidebar(props) {
 
     // Универсальное добавление дочернего узла
     const addChildToNode = (parentId, parentType, newChild) => {
-        console.log('addChildToNode:', parentId, parentType, newChild);
         const addChild = (nodes) => {
             return nodes.map(node => {
                 if (node.id === parentId && node.typeLevel === parentType) {
@@ -186,9 +181,8 @@ export default function Sidebar(props) {
     const createEntityHandlers = (config) => {
         return {
             onAdded: (newItem) => {
-                console.log(`${config.type} added:`, newItem);
 
-                // ✅ Добавляем нового ребенка в дерево без перезагрузки
+                // Добавляем нового ребенка в дерево без перезагрузки
                 const newChild = {
                     ...newItem,
                     typeLevel: config.childType,
@@ -202,7 +196,6 @@ export default function Sidebar(props) {
             },
 
             onUpdated: (updatedItem) => {
-                console.log(`${config.type} updated:`, updatedItem);
                 updateNode({
                     ...updatedItem,
                     typeLevel: config.type,
@@ -211,7 +204,6 @@ export default function Sidebar(props) {
             },
 
             onDeleted: ({ id, ...rest }) => {
-                console.log(`${config.type} deleted:`, id);
                 const parentId = rest[config.parentIdField];
                 deleteChildFromParent(parentId, config.parentType, id);
             }
@@ -309,7 +301,6 @@ export default function Sidebar(props) {
     };
 
     const handleDelete = (item) => {
-        console.log(item);
         const config = {
             title: `Удаление ${item.typeLevel}`,
             message: `Вы действительно хотите удалить ${item.typeLevel} "${item.name}"?`,
@@ -343,7 +334,6 @@ export default function Sidebar(props) {
                     eventData.pointId = item.pointId;
                 }
 
-                console.log('eventData', eventData);
                 bus.emit(eventName, eventData);
                 bus.emit('success', `${item.typeLevel} "${item.name}" удален`);
             }
