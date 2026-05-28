@@ -28,6 +28,10 @@ export default function PointFormModal() {
         setParentElementId(data.parentId);
         setParentElementName(data.parentName || '');
         resetForm();
+        if (data.pointName) setPointName(data.pointName);
+        if (data.x !== undefined && data.x !== null) setX(String(data.x));
+        if (data.y !== undefined && data.y !== null) setY(String(data.y));
+        if (data.description) setDescription(data.description);
         setOpen(true);
     });
 

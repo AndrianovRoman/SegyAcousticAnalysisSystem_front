@@ -19,6 +19,7 @@ import { useBus } from 'react-bus';
 import {useNavigate} from "react-router-dom";
 import {useAuth} from "../context/AuthContext";
 import api from "../api/axios";
+import SlabPointMap from "./SlabPointMap";
 
 export default function TreeViewItem({item, level = 0, onEdit, onDelete, onAddChild, onChildrenLoaded, onUpdateNode}) {
     const [open, setOpen] = useState(false);
@@ -29,7 +30,16 @@ export default function TreeViewItem({item, level = 0, onEdit, onDelete, onAddCh
 
     // ✅ Дети берутся напрямую из item (из родительского объекта)
     const children = item.children || [];
+    const isSlabElement = item.typeLevel === 'element' && item.type === 'slab';
+    const pointHasFiles = item.typeLevel === 'point' && (
+        children.some(child => child.typeLevel === 'file') ||
+        (Array.isArray(item.files) && item.files.length > 0) ||
+        item.filesCount > 0 ||
+        item.fileCount > 0 ||
+        item.hasFiles === true
+    );
     const hasChildren = children.length > 0;
+    const canExpand = hasChildren || isSlabElement;
 
     // Загрузка дочерних элементов
     const loadNodeChildren = async () => {
@@ -80,7 +90,7 @@ export default function TreeViewItem({item, level = 0, onEdit, onDelete, onAddCh
                     return <Rectangle fontSize="small" />;
                 }
             case 'point':
-                return <Circle fontSize="small" />;
+                return <Circle fontSize="small" color={pointHasFiles ? 'primary' : 'inherit'} />;
             case 'file':
                 return <Description fontSize="small" />;
             default:
@@ -151,6 +161,17 @@ export default function TreeViewItem({item, level = 0, onEdit, onDelete, onAddCh
         onAddChild(item, getChildType());
     };
 
+    const handleAddPointFromSlab = ({ x, y }) => {
+        bus.emit('openAddPointModal', {
+            parentId: item.id,
+            parentName: item.name || item.elementName,
+            parentType: item.typeLevel,
+            pointName: `Точка ${children.length + 1}`,
+            x,
+            y
+        });
+    };
+
     const handleEditClick = (e) => {
         e.stopPropagation();
         onEdit(item);
@@ -194,7 +215,7 @@ export default function TreeViewItem({item, level = 0, onEdit, onDelete, onAddCh
                 style={{
                     justifyContent: "space-between",
                     paddingLeft: `${paddingLeft}px`,
-                    cursor: hasChildren || loading ? 'pointer' : 'default'
+                    cursor: canExpand || loading ? 'pointer' : 'default'
                 }}
                 onClick={handleClick}
             >
@@ -207,7 +228,7 @@ export default function TreeViewItem({item, level = 0, onEdit, onDelete, onAddCh
                         secondaryTypographyProps={{ variant: 'caption', color: 'text.secondary' }}
                     />
                     {loading && <CircularProgress size={16} sx={{ ml: 1 }} />}
-                    {!loading && hasChildren && (open ? <ExpandLess fontSize="small" /> : <ExpandMore fontSize="small" />)}
+                    {!loading && canExpand && (open ? <ExpandLess fontSize="small" /> : <ExpandMore fontSize="small" />)}
                 </div>
 
                 <div>
@@ -278,6 +299,14 @@ export default function TreeViewItem({item, level = 0, onEdit, onDelete, onAddCh
 
             <Collapse in={open} timeout="auto" unmountOnExit>
                 <List component="div" disablePadding>
+                    {isSlabElement && (
+                        <SlabPointMap
+                            slab={item}
+                            points={children}
+                            onAddPoint={handleAddPointFromSlab}
+                        />
+                    )}
+
                     {children.map((child) => (
                         <TreeViewItem
                             key={`${child.typeLevel}_${child.id}`}
