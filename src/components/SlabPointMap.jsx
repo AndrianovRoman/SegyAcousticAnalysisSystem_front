@@ -18,13 +18,67 @@ const formatNumber = (value) => {
     return Number.isInteger(number) ? String(number) : number.toFixed(2);
 };
 
+const getGridStep = (size) => {
+    if (!Number.isFinite(size) || size <= 0) return 1;
+
+    const targetStep = size / 24;
+    const magnitude = Math.pow(10, Math.floor(Math.log10(targetStep)));
+    const normalized = targetStep / magnitude;
+
+    if (normalized <= 1) return magnitude;
+    if (normalized <= 2) return 2 * magnitude;
+    if (normalized <= 5) return 5 * magnitude;
+    return 10 * magnitude;
+};
+
+const getPrecision = (step) => {
+    const text = String(step);
+    return text.includes('.') ? text.split('.')[1].length : 0;
+};
+
+const snapToGrid = (value, step, maxValue) => {
+    const precision = getPrecision(step);
+    const snapped = Math.round(value / step) * step;
+    const clamped = Math.min(Math.max(snapped, 0), maxValue);
+    return Number(clamped.toFixed(Math.max(precision, 2)));
+};
+
+const buildGridValues = (size, step) => {
+    const values = [];
+    const precision = getPrecision(step);
+
+    for (let value = 0; value <= size + step / 2; value += step) {
+        const normalized = Number(Math.min(value, size).toFixed(Math.max(precision, 2)));
+        if (values[values.length - 1] !== normalized) {
+            values.push(normalized);
+        }
+    }
+
+    if (values[values.length - 1] !== size) {
+        values.push(Number(size.toFixed(Math.max(precision, 2))));
+    }
+
+    return values;
+};
+
 const hasFiles = (point) => (
     (Array.isArray(point.children) && point.children.some(child => child.typeLevel === 'file')) ||
     (Array.isArray(point.files) && point.files.length > 0) ||
-    point.filesCount > 0 ||
-    point.fileCount > 0 ||
+    getFilesCount(point) > 0 ||
     point.hasFiles === true
 );
+
+const getFilesCount = (point) => {
+    const explicitCount = Number(point.filesCount ?? point.fileCount ?? 0);
+    if (explicitCount > 0) return explicitCount;
+
+    if (Array.isArray(point.files)) return point.files.length;
+    if (Array.isArray(point.children)) {
+        return point.children.filter(child => child.typeLevel === 'file').length;
+    }
+
+    return point.hasFiles === true ? 1 : 0;
+};
 
 export default function SlabPointMap({ slab, points = [], onAddPoint }) {
     const svgRef = useRef(null);
@@ -45,6 +99,10 @@ export default function SlabPointMap({ slab, points = [], onAddPoint }) {
     const slabHeight = hasSize ? width * scale : drawableHeight;
     const slabX = (viewWidth - slabWidth) / 2;
     const slabY = (viewHeight - slabHeight) / 2;
+    const gridStepX = getGridStep(length);
+    const gridStepY = getGridStep(width);
+    const gridValuesX = hasSize ? buildGridValues(length, gridStepX) : [];
+    const gridValuesY = hasSize ? buildGridValues(width, gridStepY) : [];
 
     const getCoordinatesFromEvent = (event) => {
         if (!svgRef.current || !hasSize) return null;
@@ -65,9 +123,12 @@ export default function SlabPointMap({ slab, points = [], onAddPoint }) {
             if (distance > radius) return null;
         }
 
+        const rawX = ((px - slabX) / slabWidth) * length;
+        const rawY = ((py - slabY) / slabHeight) * width;
+
         return {
-            x: Number((((px - slabX) / slabWidth) * length).toFixed(2)),
-            y: Number((((py - slabY) / slabHeight) * width).toFixed(2))
+            x: snapToGrid(rawX, gridStepX, length),
+            y: snapToGrid(rawY, gridStepY, width)
         };
     };
 
@@ -88,15 +149,67 @@ export default function SlabPointMap({ slab, points = [], onAddPoint }) {
         const cy = slabY + (pointY / width) * slabHeight;
         if (cx < slabX || cx > slabX + slabWidth || cy < slabY || cy > slabY + slabHeight) return null;
 
+        const filesCount = getFilesCount(point);
+
         return (
             <g key={point.id || `${pointX}-${pointY}-${index}`}>
                 <circle cx={cx} cy={cy} r="5" fill={hasFiles(point) ? '#1976d2' : '#d32f2f'} stroke="#ffffff" strokeWidth="2" />
                 <text x={cx + 7} y={cy - 7} fontSize="10" fill="#263238">
                     {index + 1}
                 </text>
+                {filesCount > 0 && (
+                    <text x={cx + 7} y={cy + 8} fontSize="10" fill="#1976d2">
+                        {filesCount} файл.
+                    </text>
+                )}
             </g>
         );
     };
+
+    const renderGrid = () => (
+        <g>
+            {gridValuesX.map((value) => {
+                const x = slabX + (value / length) * slabWidth;
+                const isEdge = value === 0 || value === length;
+
+                return (
+                    <g key={`grid-x-${value}`}>
+                        <line
+                            x1={x}
+                            y1={slabY}
+                            x2={x}
+                            y2={slabY + slabHeight}
+                            stroke={isEdge ? '#90a4ae' : '#bbdefb'}
+                            strokeWidth={isEdge ? '1' : '0.75'}
+                        />
+                        <text x={x} y={slabY + slabHeight + 12} fontSize="9" textAnchor="middle" fill="#607d8b">
+                            {formatNumber(value)}
+                        </text>
+                    </g>
+                );
+            })}
+            {gridValuesY.map((value) => {
+                const y = slabY + (value / width) * slabHeight;
+                const isEdge = value === 0 || value === width;
+
+                return (
+                    <g key={`grid-y-${value}`}>
+                        <line
+                            x1={slabX}
+                            y1={y}
+                            x2={slabX + slabWidth}
+                            y2={y}
+                            stroke={isEdge ? '#90a4ae' : '#bbdefb'}
+                            strokeWidth={isEdge ? '1' : '0.75'}
+                        />
+                        <text x={slabX - 8} y={y + 3} fontSize="9" textAnchor="end" fill="#607d8b">
+                            {formatNumber(value)}
+                        </text>
+                    </g>
+                );
+            })}
+        </g>
+    );
 
     return (
         <Paper
@@ -141,6 +254,8 @@ export default function SlabPointMap({ slab, points = [], onAddPoint }) {
                                 strokeWidth="2"
                             />
                         )}
+
+                        {renderGrid()}
 
                         <line x1={slabX} y1={slabY + slabHeight + 14} x2={slabX + slabWidth} y2={slabY + slabHeight + 14} stroke="#607d8b" />
                         <line x1={slabX - 14} y1={slabY} x2={slabX - 14} y2={slabY + slabHeight} stroke="#607d8b" />

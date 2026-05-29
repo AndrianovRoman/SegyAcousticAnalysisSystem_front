@@ -31,11 +31,11 @@ export default function TreeViewItem({item, level = 0, onEdit, onDelete, onAddCh
     // ✅ Дети берутся напрямую из item (из родительского объекта)
     const children = item.children || [];
     const isSlabElement = item.typeLevel === 'element' && item.type === 'slab';
+    const filesCount = Number(item.filesCount ?? item.fileCount ?? 0);
     const pointHasFiles = item.typeLevel === 'point' && (
         children.some(child => child.typeLevel === 'file') ||
         (Array.isArray(item.files) && item.files.length > 0) ||
-        item.filesCount > 0 ||
-        item.fileCount > 0 ||
+        filesCount > 0 ||
         item.hasFiles === true
     );
     const hasChildren = children.length > 0;
@@ -99,6 +99,10 @@ export default function TreeViewItem({item, level = 0, onEdit, onDelete, onAddCh
     };
 
     const getSecondaryText = () => {
+        if (item.typeLevel === 'point') {
+            return `Файлов загружено: ${filesCount}`;
+        }
+
         if (item.typeLevel !== 'element') return null;
 
         try {
