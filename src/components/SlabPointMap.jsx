@@ -61,6 +61,11 @@ const buildGridValues = (size, step) => {
     return values;
 };
 
+const shouldShowGridLabel = (index, values) => {
+    const labelEvery = Math.max(1, Math.ceil((values.length - 1) / 6));
+    return index === 0 || index === values.length - 1 || index % labelEvery === 0;
+};
+
 const hasFiles = (point) => (
     (Array.isArray(point.children) && point.children.some(child => child.typeLevel === 'file')) ||
     (Array.isArray(point.files) && point.files.length > 0) ||
@@ -91,14 +96,17 @@ export default function SlabPointMap({ slab, points = [], onAddPoint }) {
 
     const viewWidth = 360;
     const viewHeight = 240;
-    const padding = 28;
-    const drawableWidth = viewWidth - padding * 2;
-    const drawableHeight = viewHeight - padding * 2;
+    const paddingLeft = 50;
+    const paddingRight = 24;
+    const paddingTop = 24;
+    const paddingBottom = 38;
+    const drawableWidth = viewWidth - paddingLeft - paddingRight;
+    const drawableHeight = viewHeight - paddingTop - paddingBottom;
     const scale = hasSize ? Math.min(drawableWidth / length, drawableHeight / width) : 1;
     const slabWidth = hasSize ? length * scale : drawableWidth;
     const slabHeight = hasSize ? width * scale : drawableHeight;
-    const slabX = (viewWidth - slabWidth) / 2;
-    const slabY = (viewHeight - slabHeight) / 2;
+    const slabX = paddingLeft + (drawableWidth - slabWidth) / 2;
+    const slabY = paddingTop + (drawableHeight - slabHeight) / 2;
     const gridStepX = getGridStep(length);
     const gridStepY = getGridStep(width);
     const gridValuesX = hasSize ? buildGridValues(length, gridStepX) : [];
@@ -168,9 +176,10 @@ export default function SlabPointMap({ slab, points = [], onAddPoint }) {
 
     const renderGrid = () => (
         <g>
-            {gridValuesX.map((value) => {
+            {gridValuesX.map((value, index) => {
                 const x = slabX + (value / length) * slabWidth;
                 const isEdge = value === 0 || value === length;
+                const showLabel = shouldShowGridLabel(index, gridValuesX);
 
                 return (
                     <g key={`grid-x-${value}`}>
@@ -182,15 +191,18 @@ export default function SlabPointMap({ slab, points = [], onAddPoint }) {
                             stroke={isEdge ? '#90a4ae' : '#bbdefb'}
                             strokeWidth={isEdge ? '1' : '0.75'}
                         />
-                        <text x={x} y={slabY + slabHeight + 12} fontSize="9" textAnchor="middle" fill="#607d8b">
-                            {formatNumber(value)}
-                        </text>
+                        {showLabel && (
+                            <text x={x} y={slabY + slabHeight + 12} fontSize="9" textAnchor="middle" fill="#607d8b">
+                                {formatNumber(value)}
+                            </text>
+                        )}
                     </g>
                 );
             })}
-            {gridValuesY.map((value) => {
+            {gridValuesY.map((value, index) => {
                 const y = slabY + (value / width) * slabHeight;
                 const isEdge = value === 0 || value === width;
+                const showLabel = shouldShowGridLabel(index, gridValuesY);
 
                 return (
                     <g key={`grid-y-${value}`}>
@@ -202,9 +214,11 @@ export default function SlabPointMap({ slab, points = [], onAddPoint }) {
                             stroke={isEdge ? '#90a4ae' : '#bbdefb'}
                             strokeWidth={isEdge ? '1' : '0.75'}
                         />
-                        <text x={slabX - 8} y={y + 3} fontSize="9" textAnchor="end" fill="#607d8b">
-                            {formatNumber(value)}
-                        </text>
+                        {showLabel && (
+                            <text x={slabX - 7} y={y + 3} fontSize="9" textAnchor="end" fill="#607d8b">
+                                {formatNumber(value)}
+                            </text>
+                        )}
                     </g>
                 );
             })}
@@ -258,11 +272,11 @@ export default function SlabPointMap({ slab, points = [], onAddPoint }) {
                         {renderGrid()}
 
                         <line x1={slabX} y1={slabY + slabHeight + 14} x2={slabX + slabWidth} y2={slabY + slabHeight + 14} stroke="#607d8b" />
-                        <line x1={slabX - 14} y1={slabY} x2={slabX - 14} y2={slabY + slabHeight} stroke="#607d8b" />
+                        <line x1={slabX - 24} y1={slabY} x2={slabX - 24} y2={slabY + slabHeight} stroke="#607d8b" />
                         <text x={slabX + slabWidth / 2} y={slabY + slabHeight + 27} fontSize="11" textAnchor="middle" fill="#455a64">
                             X: {formatNumber(length)} м
                         </text>
-                        <text x={slabX - 19} y={slabY + slabHeight / 2} fontSize="11" textAnchor="middle" fill="#455a64" transform={`rotate(-90 ${slabX - 19} ${slabY + slabHeight / 2})`}>
+                        <text x={slabX - 40} y={slabY + slabHeight / 2} fontSize="11" textAnchor="middle" fill="#455a64" transform={`rotate(-90 ${slabX - 40} ${slabY + slabHeight / 2})`}>
                             Y: {formatNumber(width)} м
                         </text>
 
