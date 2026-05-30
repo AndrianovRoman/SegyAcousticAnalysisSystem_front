@@ -20,6 +20,7 @@ export default function FileInfoPage() {
     const bus = useBus();
 
     const pointId = location.state?.pointId;
+    const navigationElementGeometryData = location.state?.elementGeometryData;
 
     // Состояния для UI
     const [showGrid, setShowGrid] = useState(true);
@@ -481,22 +482,77 @@ export default function FileInfoPage() {
         }
     };
 
-    const drawHeatmap = (matrix, xValues, yValues, minValue, maxValue) => {
+    const parseGeometryData = (geometryData) => {
+        if (!geometryData) return null;
+
+        try {
+            return typeof geometryData === 'string' ? JSON.parse(geometryData) : geometryData;
+        } catch (err) {
+            console.error('Ошибка парсинга geometryData:', err);
+            return null;
+        }
+    };
+
+    const getSlabBounds = (points = []) => {
+        const geometry = parseGeometryData(
+            navigationElementGeometryData ||
+            fileData?.geometryData ||
+            fileData?.elementGeometryData ||
+            fileData?.element?.geometryData
+        );
+
+        const slabLength = Number(geometry?.length) > 0 ? Number(geometry.length) : Number(geometry?.diameter) / 1000;
+        const slabWidth = Number(geometry?.width) > 0 ? Number(geometry.width) : Number(geometry?.diameter) / 1000;
+
+        if (Number(slabLength) > 0 && Number(slabWidth) > 0) {
+            return { minX: 0, maxX: slabLength, minY: 0, maxY: slabWidth };
+        }
+
+        if (points.length === 0) {
+            return { minX: 0, maxX: 1, minY: 0, maxY: 1 };
+        }
+
+        const xs = points.map(point => point.x);
+        const ys = points.map(point => point.y);
+        let minX = Math.min(...xs);
+        let maxX = Math.max(...xs);
+        let minY = Math.min(...ys);
+        let maxY = Math.max(...ys);
+
+        if (minX === maxX) maxX = minX + 1;
+        if (minY === maxY) maxY = minY + 1;
+
+        return { minX, maxX, minY, maxY };
+    };
+
+    const drawHeatmap = (matrix, xValues, yValues, minValue, maxValue, measuredPoints = []) => {
         if (!canvasRef.current || !matrix.length || !matrix[0].length) return;
 
         const canvas = canvasRef.current;
         const ctx = canvas.getContext('2d');
         const width = canvas.width;
         const height = canvas.height;
+        const paddingLeft = 54;
+        const paddingRight = 18;
+        const paddingTop = 18;
+        const paddingBottom = 42;
+        const plotX = paddingLeft;
+        const plotY = paddingTop;
+        const plotWidth = width - paddingLeft - paddingRight;
+        const plotHeight = height - paddingTop - paddingBottom;
 
-        const cellWidth = width / matrix.length;
-        const cellHeight = height / matrix[0].length;
+        ctx.clearRect(0, 0, width, height);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, width, height);
+
+        const cellWidth = plotWidth / matrix.length;
+        const cellHeight = plotHeight / matrix[0].length;
 
         for (let i = 0; i < matrix.length; i++) {
             for (let j = 0; j < matrix[0].length; j++) {
                 const color = getColorForValue(matrix[i][j], minValue, maxValue);
                 ctx.fillStyle = color;
-                ctx.fillRect(i * cellWidth, j * cellHeight, cellWidth, cellHeight);
+                ctx.fillRect(plotX + i * cellWidth, plotY + j * cellHeight, cellWidth, cellHeight);
             }
         }
 
@@ -504,55 +560,82 @@ export default function FileInfoPage() {
         ctx.lineWidth = 0.5;
         for (let i = 0; i <= matrix.length; i++) {
             ctx.beginPath();
-            ctx.moveTo(i * cellWidth, 0);
-            ctx.lineTo(i * cellWidth, height);
+            ctx.moveTo(plotX + i * cellWidth, plotY);
+            ctx.lineTo(plotX + i * cellWidth, plotY + plotHeight);
             ctx.stroke();
         }
         for (let j = 0; j <= matrix[0].length; j++) {
             ctx.beginPath();
-            ctx.moveTo(0, j * cellHeight);
-            ctx.lineTo(width, j * cellHeight);
+            ctx.moveTo(plotX, plotY + j * cellHeight);
+            ctx.lineTo(plotX + plotWidth, plotY + j * cellHeight);
             ctx.stroke();
         }
+
+        ctx.strokeStyle = '#455a64';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(plotX, plotY, plotWidth, plotHeight);
+
+        const minX = xValues[0];
+        const maxX = xValues[xValues.length - 1];
+        const minY = yValues[0];
+        const maxY = yValues[yValues.length - 1];
+        const xRange = maxX - minX || 1;
+        const yRange = maxY - minY || 1;
+
+        ctx.fillStyle = '#455a64';
+        ctx.font = '12px Roboto, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(`X: ${minX.toFixed(2)}-${maxX.toFixed(2)} м`, plotX + plotWidth / 2, height - 12);
+
+        ctx.save();
+        ctx.translate(14, plotY + plotHeight / 2);
+        ctx.rotate(-Math.PI / 2);
+        ctx.fillText(`Y: ${minY.toFixed(2)}-${maxY.toFixed(2)} м`, 0, 0);
+        ctx.restore();
+
+        measuredPoints.forEach((point, index) => {
+            const px = plotX + ((point.x - minX) / xRange) * plotWidth;
+            const py = plotY + ((point.y - minY) / yRange) * plotHeight;
+
+            if (px < plotX || px > plotX + plotWidth || py < plotY || py > plotY + plotHeight) return;
+
+            ctx.beginPath();
+            ctx.fillStyle = '#111827';
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2;
+            ctx.arc(px, py, 5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.fillStyle = '#111827';
+            ctx.font = '11px Roboto, sans-serif';
+            ctx.textAlign = 'left';
+            ctx.fillText(String(index + 1), px + 7, py - 7);
+        });
     };
 
-    const interpolatePoints = (points, xValues, yValues, countX, countY) => {
-        if (xValues.length === 0 || yValues.length === 0) return { matrix: [], xValues: [], yValues: [] };
+    const interpolatePoints = (points, bounds, countX, countY) => {
+        if (points.length === 0) return { matrix: [], xValues: [], yValues: [] };
 
-        const minX = Math.min(...xValues);
-        const maxX = Math.max(...xValues);
-        const minY = Math.min(...yValues);
-        const maxY = Math.max(...yValues);
+        const safeCountX = Math.max(2, countX);
+        const safeCountY = Math.max(2, countY);
+        const stepX = (bounds.maxX - bounds.minX) / (safeCountX - 1);
+        const stepY = (bounds.maxY - bounds.minY) / (safeCountY - 1);
+        const newX = Array.from({ length: safeCountX }, (_, i) => bounds.minX + i * stepX);
+        const newY = Array.from({ length: safeCountY }, (_, i) => bounds.minY + i * stepY);
 
-        const stepX = (maxX - minX) / (countX - 1);
-        const stepY = (maxY - minY) / (countY - 1);
-
-        const newX = Array.from({ length: countX }, (_, i) => minX + i * stepX);
-        const newY = Array.from({ length: countY }, (_, i) => minY + i * stepY);
-
-        const matrix = Array(xValues.length).fill().map(() => Array(yValues.length).fill(0));
-        for (let i = 0; i < points.length; i++) {
-            const xi = xValues.findIndex(x => Math.abs(x - points[i].x) < 0.001);
-            const yi = yValues.findIndex(y => Math.abs(y - points[i].y) < 0.001);
-            if (xi >= 0 && yi >= 0) {
-                matrix[xi][yi] = points[i].value;
-            }
-        }
-
-        const result = Array(countX).fill().map(() => Array(countY).fill(0));
-        for (let i = 0; i < countX; i++) {
-            for (let j = 0; j < countY; j++) {
+        const result = Array(safeCountX).fill().map(() => Array(safeCountY).fill(0));
+        for (let i = 0; i < safeCountX; i++) {
+            for (let j = 0; j < safeCountY; j++) {
                 let sum = 0, weightSum = 0;
-                for (let k = 0; k < xValues.length; k++) {
-                    for (let l = 0; l < yValues.length; l++) {
-                        if (matrix[k][l] !== 0) {
-                            const distance = Math.sqrt(Math.pow(newX[i] - xValues[k], 2) + Math.pow(newY[j] - yValues[l], 2));
-                            const weight = 1 / (distance + 0.001);
-                            sum += matrix[k][l] * weight;
-                            weightSum += weight;
-                        }
-                    }
-                }
+
+                points.forEach((point) => {
+                    const distance = Math.sqrt(Math.pow(newX[i] - point.x, 2) + Math.pow(newY[j] - point.y, 2));
+                    const weight = 1 / (distance + 0.001);
+                    sum += point.value * weight;
+                    weightSum += weight;
+                });
+
                 result[i][j] = weightSum > 0 ? sum / weightSum : 0;
             }
         }
@@ -613,18 +696,16 @@ export default function FileInfoPage() {
             setMinAttributeValue(minValue);
             setMaxAttributeValue(maxValue);
 
-            const uniqueX = [...new Set(results.map(r => r.x))].sort((a, b) => a - b);
-            const uniqueY = [...new Set(results.map(r => r.y))].sort((a, b) => a - b);
-
-            const { matrix, xValues, yValues } = interpolatePoints(results, uniqueX, uniqueY, interpPointsX, interpPointsY);
+            const bounds = getSlabBounds(results);
+            const { matrix, xValues, yValues } = interpolatePoints(results, bounds, interpPointsX, interpPointsY);
 
             if (matrix.length === 0) {
                 bus.emit('error', 'Ошибка интерполяции данных');
                 return;
             }
 
-            setHeatmapData({ matrix, xValues, yValues, minValue, maxValue });
-            setTimeout(() => drawHeatmap(matrix, xValues, yValues, minValue, maxValue), 100);
+            setHeatmapData({ matrix, xValues, yValues, minValue, maxValue, points: results });
+            setTimeout(() => drawHeatmap(matrix, xValues, yValues, minValue, maxValue, results), 100);
             bus.emit('success', 'Тепловая карта построена');
 
         } catch (err) {

@@ -73,7 +73,9 @@ export default function Sidebar(props) {
                         typeLevel: 'point',
                         name: point.pointName,
                         children: [],
-                        elementId: node.id
+                        elementId: node.id,
+                        elementType: node.type,
+                        elementGeometryData: node.geometryData
                     }));
 
                 case 'point':
@@ -83,7 +85,9 @@ export default function Sidebar(props) {
                         typeLevel: 'file',
                         name: file.fileName,
                         children: [],
-                        elementId: node.elementId
+                        elementId: node.elementId,
+                        elementType: node.elementType,
+                        elementGeometryData: node.elementGeometryData
                     }));
 
                 default:

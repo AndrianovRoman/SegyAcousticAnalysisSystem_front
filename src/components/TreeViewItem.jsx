@@ -68,7 +68,9 @@ export default function TreeViewItem({item, level = 0, onEdit, onDelete, onAddCh
             navigate(`/file/${item.id}`, {
                 state: {
                     pointId: item.pointId,
-                    elementId: item.elementId
+                    elementId: item.elementId,
+                    elementType: item.elementType,
+                    elementGeometryData: item.elementGeometryData
                 }
             })
             return;
