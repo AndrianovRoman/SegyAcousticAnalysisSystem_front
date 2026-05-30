@@ -1,6 +1,7 @@
 import { useMemo, useRef } from 'react';
 import { Box, Paper, Typography } from '@mui/material';
 
+// Вспомогательные функции
 const parseGeometry = (geometryData) => {
     if (!geometryData) return null;
 
@@ -66,23 +67,23 @@ const shouldShowGridLabel = (index, values) => {
     return index === 0 || index === values.length - 1 || index % labelEvery === 0;
 };
 
-const hasFiles = (point) => (
-    (Array.isArray(point.children) && point.children.some(child => child.typeLevel === 'file')) ||
-    (Array.isArray(point.files) && point.files.length > 0) ||
-    getFilesCount(point) > 0 ||
-    point.hasFiles === true
-);
-
-const getFilesCount = (point) => {
-    const explicitCount = Number(point.filesCount ?? point.fileCount ?? 0);
-    if (explicitCount > 0) return explicitCount;
-
-    if (Array.isArray(point.files)) return point.files.length;
-    if (Array.isArray(point.children)) {
-        return point.children.filter(child => child.typeLevel === 'file').length;
+// Проверка наличия файлов у точки
+const hasFiles = (point) => {
+    // Проверяем children
+    if (Array.isArray(point.children) && point.children.some(child => child.typeLevel === 'file')) {
+        return true;
     }
+    // Проверяем files
+    if (Array.isArray(point.files) && point.files.length > 0) {
+        return true;
+    }
+    // Проверяем filesCount
+    const filesCount = Number(point.filesCount ?? point.fileCount ?? 0);
+    if (filesCount > 0) return true;
+    // Проверяем hasFiles
+    if (point.hasFiles === true) return true;
 
-    return point.hasFiles === true ? 1 : 0;
+    return false;
 };
 
 export default function SlabPointMap({ slab, points = [], onAddPoint }) {
@@ -92,7 +93,7 @@ export default function SlabPointMap({ slab, points = [], onAddPoint }) {
     const length = Number(geometry?.length) > 0 ? Number(geometry.length) : Number(geometry?.diameter) / 1000;
     const width = Number(geometry?.width) > 0 ? Number(geometry.width) : Number(geometry?.diameter) / 1000;
     const isRound = !geometry?.length && !geometry?.width && Number(geometry?.diameter) > 0;
-    const hasSize = Number(length) > 0 && Number(width) > 0;
+    const hasSize = length > 0 && width > 0;
 
     const viewWidth = 360;
     const viewHeight = 240;
@@ -157,25 +158,34 @@ export default function SlabPointMap({ slab, points = [], onAddPoint }) {
         const cy = slabY + (pointY / width) * slabHeight;
         if (cx < slabX || cx > slabX + slabWidth || cy < slabY || cy > slabY + slabHeight) return null;
 
-        const filesCount = getFilesCount(point);
+        // Определяем цвет точки в зависимости от наличия файлов
+        const pointColor = hasFiles(point) ? '#1976d2' : '#d32f2f';
 
         return (
             <g key={point.id || `${pointX}-${pointY}-${index}`}>
-                <circle cx={cx} cy={cy} r="5" fill={hasFiles(point) ? '#1976d2' : '#d32f2f'} stroke="#ffffff" strokeWidth="2" />
-                <text x={cx + 7} y={cy - 7} fontSize="10" fill="#263238">
+                <circle
+                    cx={cx}
+                    cy={cy}
+                    r="5"
+                    fill={pointColor}
+                    stroke="#ffffff"
+                    strokeWidth="2"
+                />
+                <text
+                    x={cx + 7}
+                    y={cy - 7}
+                    fontSize="10"
+                    fill="#263238"
+                >
                     {index + 1}
                 </text>
-                {filesCount > 0 && (
-                    <text x={cx + 7} y={cy + 8} fontSize="10" fill="#1976d2">
-                        {filesCount} файл.
-                    </text>
-                )}
             </g>
         );
     };
 
     const renderGrid = () => (
         <g>
+            {/* Вертикальные линии сетки */}
             {gridValuesX.map((value, index) => {
                 const x = slabX + (value / length) * slabWidth;
                 const isEdge = value === 0 || value === length;
@@ -192,13 +202,21 @@ export default function SlabPointMap({ slab, points = [], onAddPoint }) {
                             strokeWidth={isEdge ? '1' : '0.75'}
                         />
                         {showLabel && (
-                            <text x={x} y={slabY + slabHeight + 12} fontSize="9" textAnchor="middle" fill="#607d8b">
+                            <text
+                                x={x}
+                                y={slabY + slabHeight + 12}
+                                fontSize="9"
+                                textAnchor="middle"
+                                fill="#607d8b"
+                            >
                                 {formatNumber(value)}
                             </text>
                         )}
                     </g>
                 );
             })}
+
+            {/* Горизонтальные линии сетки */}
             {gridValuesY.map((value, index) => {
                 const y = slabY + (value / width) * slabHeight;
                 const isEdge = value === 0 || value === width;
@@ -215,7 +233,13 @@ export default function SlabPointMap({ slab, points = [], onAddPoint }) {
                             strokeWidth={isEdge ? '1' : '0.75'}
                         />
                         {showLabel && (
-                            <text x={slabX - 7} y={y + 3} fontSize="9" textAnchor="end" fill="#607d8b">
+                            <text
+                                x={slabX - 7}
+                                y={y + 3}
+                                fontSize="9"
+                                textAnchor="end"
+                                fill="#607d8b"
+                            >
                                 {formatNumber(value)}
                             </text>
                         )}
@@ -231,7 +255,11 @@ export default function SlabPointMap({ slab, points = [], onAddPoint }) {
             sx={{ mx: 1.5, my: 1, p: 1.5, bgcolor: '#fafafa' }}
             onClick={(event) => event.stopPropagation()}
         >
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+            <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ display: 'block', mb: 1 }}
+            >
                 План плиты: кликните по области, чтобы добавить точку
             </Typography>
 
@@ -247,7 +275,10 @@ export default function SlabPointMap({ slab, points = [], onAddPoint }) {
                         onClick={handleClick}
                         style={{ display: 'block', cursor: 'crosshair' }}
                     >
+                        {/* Фон */}
                         <rect x="0" y="0" width={viewWidth} height={viewHeight} fill="#ffffff" />
+
+                        {/* Контур плиты */}
                         {isRound ? (
                             <circle
                                 cx={slabX + slabWidth / 2}
@@ -269,21 +300,18 @@ export default function SlabPointMap({ slab, points = [], onAddPoint }) {
                             />
                         )}
 
+                        {/* Сетка */}
                         {renderGrid()}
 
-                        <line x1={slabX} y1={slabY + slabHeight + 14} x2={slabX + slabWidth} y2={slabY + slabHeight + 14} stroke="#607d8b" />
-                        <line x1={slabX - 24} y1={slabY} x2={slabX - 24} y2={slabY + slabHeight} stroke="#607d8b" />
-                        <text x={slabX + slabWidth / 2} y={slabY + slabHeight + 27} fontSize="11" textAnchor="middle" fill="#455a64">
-                            X: {formatNumber(length)} м
-                        </text>
-                        <text x={slabX - 40} y={slabY + slabHeight / 2} fontSize="11" textAnchor="middle" fill="#455a64" transform={`rotate(-90 ${slabX - 40} ${slabY + slabHeight / 2})`}>
-                            Y: {formatNumber(width)} м
-                        </text>
-
+                        {/* Точки */}
                         {points.map(renderPoint)}
                     </svg>
 
-                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                    <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        sx={{ display: 'block', mt: 0.5 }}
+                    >
                         Точек: {points.length}
                     </Typography>
                 </Box>

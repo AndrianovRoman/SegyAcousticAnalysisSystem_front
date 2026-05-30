@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-    baseURL: process.env.REACT_APP_API_URL || '/',
+    baseURL: process.env.REACT_APP_API_URL || 'https://acoustic-analysis.shares.zrok.io/',
     headers: {
         'Content-Type': 'application/json',
         'ngrok-skip-browser-warning': 'true', // @todo Возможно надо будет убрать
