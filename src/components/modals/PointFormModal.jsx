@@ -59,7 +59,6 @@ export default function PointFormModal() {
 
     const isFormValid = () => {
         if (!pointName.trim()) return false;
-        if (!x || !y) return false;
         return true;
     };
 
@@ -155,7 +154,6 @@ export default function PointFormModal() {
                                     type="number"
                                     value={x}
                                     onChange={(e) => setX(e.target.value)}
-                                    required
                                     InputProps={{ inputProps: { step: 0.01 } }}
                                     placeholder="0.00"
                                 />
@@ -167,7 +165,6 @@ export default function PointFormModal() {
                                     type="number"
                                     value={y}
                                     onChange={(e) => setY(e.target.value)}
-                                    required
                                     InputProps={{ inputProps: { step: 0.01 } }}
                                     placeholder="0.00"
                                 />

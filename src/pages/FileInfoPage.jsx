@@ -190,6 +190,80 @@ export default function FileInfoPage() {
         setPointsCoords([]);
     }, [fileId]);
 
+    const lastChangedRef = useRef(null);
+
+    const handleStartMarkerChange = (value) => {
+        lastChangedRef.current = 'startMarker';
+        setStartMarker(value);
+    };
+
+    const handleEndMarkerChange = (value) => {
+        lastChangedRef.current = 'endMarker';
+        setEndMarker(value);
+    };
+
+    const handleWaveSpeedChange = (value) => {
+        lastChangedRef.current = 'waveSpeed';
+        setWaveSpeed(value);
+    };
+
+    const handlePileLengthChange = (value) => {
+        lastChangedRef.current = 'pileLength';
+        setPileLength(value);
+    };
+
+    const autoRecalculate = useCallback(() => {
+        // Если нет обоих маркеров или они некорректны — выходим
+        if (startMarker === null || endMarker === null || startMarker >= endMarker) {
+            return;
+        }
+
+        const deltaTime = endMarker - startMarker;
+
+        // Если пользователь только что менял длину — пересчитываем скорость
+        if (lastChangedRef.current === 'pileLength' && pileLength > 0) {
+            const calculatedSpeed = (2 * pileLength) / deltaTime;
+            const roundedSpeed = Math.round(calculatedSpeed);
+            if (roundedSpeed !== waveSpeed) {
+                setWaveSpeed(roundedSpeed);
+            }
+            return;
+        }
+
+        // Если пользователь только что менял скорость — пересчитываем длину
+        if (lastChangedRef.current === 'waveSpeed' && waveSpeed > 0) {
+            const calculatedLength = (waveSpeed * deltaTime) / 2;
+            if (Math.abs(calculatedLength - pileLength) > 0.001) {
+                setPileLength(calculatedLength);
+            }
+            return;
+        }
+
+        // Если пользователь менял маркеры или ничего не менял
+        // Приоритет: если есть скорость — считаем длину, иначе если есть длина — считаем скорость
+        if (waveSpeed > 0) {
+            const calculatedLength = (waveSpeed * deltaTime) / 2;
+            if (Math.abs(calculatedLength - pileLength) > 0.001) {
+                setPileLength(calculatedLength);
+            }
+        } else if (pileLength > 0) {
+            const calculatedSpeed = (2 * pileLength) / deltaTime;
+            const roundedSpeed = Math.round(calculatedSpeed);
+            if (roundedSpeed !== waveSpeed) {
+                setWaveSpeed(roundedSpeed);
+            }
+        }
+    }, [startMarker, endMarker, waveSpeed, pileLength]);
+
+    useEffect(() => {
+        autoRecalculate();
+        // Сбрасываем флаг после пересчета
+        const timer = setTimeout(() => {
+            lastChangedRef.current = null;
+        }, 100);
+        return () => clearTimeout(timer);
+    }, [startMarker, endMarker, waveSpeed, pileLength, autoRecalculate]);
+
     // Функция применения всех фильтров
     const updateChart = useCallback(() => {
         if (!originalTraces.length || !timeAxis.length) return;
@@ -636,7 +710,7 @@ export default function FileInfoPage() {
 
     if (loading) {
         return (
-            <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+            <Box style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '90vh' }}>
                 <CircularProgress />
             </Box>
         );
@@ -682,25 +756,6 @@ export default function FileInfoPage() {
                     tracesCount={tracesCount}
                     elementType={elementType}
                 />
-
-                {isPile && (
-                    <Grid container spacing={2} sx={{ mb: 4 }}>
-                        <PileAnalysis
-                            startMarker={startMarker}
-                            setStartMarker={setStartMarker}
-                            endMarker={endMarker}
-                            setEndMarker={setEndMarker}
-                            waveSpeed={waveSpeed}
-                            setWaveSpeed={setWaveSpeed}
-                            pileLength={pileLength}
-                            setPileLength={setPileLength}
-                            markerMode={markerMode}
-                            setMarkerMode={setMarkerMode}
-                            onCalculateLength={handleCalculateLength}
-                            onCalculateSpeed={handleCalculateSpeed}
-                        />
-                    </Grid>
-                )}
 
                 {isSlab && (
                     <SlabAnalysis
@@ -757,6 +812,63 @@ export default function FileInfoPage() {
                         isStaticCorrection={isStaticCorrection}
                     />
                 )}
+
+                {isPile && (
+                    <Grid container spacing={2} sx={{ mb: 4 }}>
+                        <PileAnalysis
+                            startMarker={startMarker}
+                            setStartMarker={handleStartMarkerChange}
+                            endMarker={endMarker}
+                            setEndMarker={handleEndMarkerChange}
+                            waveSpeed={waveSpeed}
+                            setWaveSpeed={handleWaveSpeedChange}
+                            pileLength={pileLength}
+                            setPileLength={handlePileLengthChange}
+                            markerMode={markerMode}
+                            setMarkerMode={setMarkerMode}
+                            onCalculateLength={handleCalculateLength}
+                            onCalculateSpeed={handleCalculateSpeed}
+                        />
+                    </Grid>
+                )}
+
+                {/*{isPile && (*/}
+                {/*    <Grid container spacing={1} sx={{ mb: 1 }}>*/}
+                {/*        <Grid item xs={12} md={4}>*/}
+                {/*            <PileAnalysis*/}
+                {/*                startMarker={startMarker}*/}
+                {/*                setStartMarker={handleStartMarkerChange}*/}
+                {/*                endMarker={endMarker}*/}
+                {/*                setEndMarker={handleEndMarkerChange}*/}
+                {/*                waveSpeed={waveSpeed}*/}
+                {/*                setWaveSpeed={handleWaveSpeedChange}*/}
+                {/*                pileLength={pileLength}*/}
+                {/*                setPileLength={handlePileLengthChange}*/}
+                {/*                markerMode={markerMode}*/}
+                {/*                setMarkerMode={setMarkerMode}*/}
+                {/*                onCalculateLength={handleCalculateLength}*/}
+                {/*                onCalculateSpeed={handleCalculateSpeed}*/}
+                {/*            />*/}
+                {/*        </Grid>*/}
+                {/*        <Grid item xs={12} md={8}>*/}
+                {/*            <SignalProcessing*/}
+                {/*                gainValue={gainValue}*/}
+                {/*                setGainValue={setGainValue}*/}
+                {/*                correctionValue={correctionValue}*/}
+                {/*                setCorrectionValue={setCorrectionValue}*/}
+                {/*                showGrid={showGrid}*/}
+                {/*                setShowGrid={setShowGrid}*/}
+                {/*                onApplyGain={handleApplyGain}*/}
+                {/*                onApplyCorrection={handleApplyCorrection}*/}
+                {/*                onApplyDcRemoval={handleApplyDcRemoval}*/}
+                {/*                onApplyStaticCorrection={handleApplyStaticCorrection}*/}
+                {/*                onResetProcessing={handleResetProcessing}*/}
+                {/*                isDcRemoval={isDcRemoval}*/}
+                {/*                isStaticCorrection={isStaticCorrection}*/}
+                {/*            />*/}
+                {/*        </Grid>*/}
+                {/*    </Grid>*/}
+                {/*)}*/}
 
                 <SignalChart
                     plotRef={plotRef}

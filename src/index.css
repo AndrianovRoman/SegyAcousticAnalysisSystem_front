@@ -27,3 +27,9 @@ body {
   width: 100%;
   height: 100%;
 }
+
+.css-bqmrhp-MuiContainer-root {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  padding-right: 0 !important;
+}
