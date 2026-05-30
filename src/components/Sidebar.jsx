@@ -1,6 +1,11 @@
 import * as React from 'react';
 import { useState, useEffect, useRef } from 'react';
-import {Button, Divider, Drawer, List, ListItem, ListItemText, CircularProgress} from "@mui/material";
+import {
+    Button, Divider, Drawer, List, ListItem, ListItemText, CircularProgress,
+    TextField, InputAdornment, Box, Typography // ← Добавить Typography
+} from "@mui/material";
+import SearchIcon from '@mui/icons-material/Search'; // ← Добавить
+import ClearIcon from '@mui/icons-material/Clear'; // ← Добавить
 import { useAuth } from '../context/AuthContext';
 import { useBus, useListener } from 'react-bus';
 import api from "../api/axios";
@@ -10,11 +15,13 @@ import AddHomeIcon from '@mui/icons-material/AddHome';
 import LogoutIcon from '@mui/icons-material/Logout';
 import PersonIcon from '@mui/icons-material/Person';
 import TreeViewItem from './TreeViewItem';
-import {useNavigate} from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 
 export default function Sidebar(props) {
     const drawerWidth = props.width;
     const [treeData, setTreeData] = useState([]);
+    const [sortedTreeData, setSortedTreeData] = useState([]); // ← ИЗМЕНЕНО: для отсортированных данных
+    const [searchQuery, setSearchQuery] = useState('');
     const [loading, setLoading] = useState(false);
 
     const bus = useBus();
@@ -36,6 +43,7 @@ export default function Sidebar(props) {
             }));
 
             setTreeData(objectsWithChildren);
+            setSortedTreeData(objectsWithChildren);
         } catch (err) {
             console.error('Ошибка загрузки объектов:', err);
             bus.emit('error', 'Не удалось загрузить список объектов');
@@ -50,6 +58,52 @@ export default function Sidebar(props) {
             fetchObjects();
         }
     }, []);
+
+    // ← НОВОЕ: Функция сортировки объектов по релевантности имени
+    const sortObjectsByRelevance = (objects, query) => {
+        if (!query.trim()) return objects;
+
+        const lowerQuery = query.toLowerCase().trim();
+
+        // Вычисляем релевантность для каждого объекта
+        const objectsWithRelevance = objects.map(obj => {
+            let relevance = 0;
+            const nameLower = obj.name.toLowerCase();
+
+            // Полное совпадение (наивысший приоритет)
+            if (nameLower === lowerQuery) relevance = 100;
+            // Начинается с запроса
+            else if (nameLower.startsWith(lowerQuery)) relevance = 50;
+            // Содержит запрос как отдельное слово
+            else if (nameLower.split(' ').some(word => word === lowerQuery)) relevance = 30;
+            // Содержит запрос
+            else if (nameLower.includes(lowerQuery)) relevance = 10;
+
+            return { ...obj, relevance };
+        });
+
+        // Сортируем: сначала те, у кого relevance > 0 (по убыванию), потом остальные
+        return objectsWithRelevance.sort((a, b) => b.relevance - a.relevance);
+    };
+
+    // ← НОВОЕ: Обработчик изменения поиска
+    const handleSearchChange = (event) => {
+        const query = event.target.value;
+        setSearchQuery(query);
+
+        if (!query.trim()) {
+            setSortedTreeData(treeData);
+        } else {
+            const sorted = sortObjectsByRelevance([...treeData], query);
+            setSortedTreeData(sorted);
+        }
+    };
+
+    // ← НОВОЕ: Очистка поиска
+    const handleClearSearch = () => {
+        setSearchQuery('');
+        setSortedTreeData(treeData);
+    };
 
     // Универсальная функция загрузки детей в зависимости от типа узла
     const loadChildrenForNode = async (node) => {
@@ -116,8 +170,29 @@ export default function Sidebar(props) {
                     return node;
                 });
             };
-
             return updateNodeRecursive(prevTree);
+        });
+
+        // Также обновляем отсортированные данные
+        setSortedTreeData(prevSorted => {
+            const updateSortedRecursive = (nodes) => {
+                return nodes.map(node => {
+                    if (node.id === parent.id && node.typeLevel === parent.typeLevel) {
+                        return {
+                            ...node,
+                            children: newChildren
+                        };
+                    }
+                    if (node.children && node.children.length > 0) {
+                        return {
+                            ...node,
+                            children: updateSortedRecursive(node.children)
+                        };
+                    }
+                    return node;
+                });
+            };
+            return updateSortedRecursive(prevSorted);
         });
     };
 
@@ -138,6 +213,7 @@ export default function Sidebar(props) {
             });
         };
         setTreeData(prev => addChild(prev));
+        setSortedTreeData(prev => addChild(prev));
     };
 
     // Универсальное обновление узла
@@ -154,6 +230,7 @@ export default function Sidebar(props) {
             });
         };
         setTreeData(prev => updateNodeInTree(prev));
+        setSortedTreeData(prev => updateNodeInTree(prev));
     };
 
     // Универсальное удаление узла из родителя
@@ -173,28 +250,23 @@ export default function Sidebar(props) {
             });
         };
         setTreeData(prev => deleteFromParent(prev));
+        setSortedTreeData(prev => deleteFromParent(prev));
     };
 
     // ============= Объединенные обработчики через фабрику =============
 
-    // Фабрика для создания обработчиков CRUD операций
     const createEntityHandlers = (config) => {
         return {
             onAdded: (newItem) => {
-
-                // Добавляем нового ребенка в дерево без перезагрузки
                 const newChild = {
                     ...newItem,
                     typeLevel: config.childType,
                     name: newItem[config.nameField],
                     children: []
                 };
-
-                // Добавляем ребенка к родителю
                 addChildToNode(newItem[config.parentIdField], config.parentType, newChild);
                 bus.emit('success', `${config.successMessage} "${newItem[config.nameField]}" успешно добавлен`);
             },
-
             onUpdated: (updatedItem) => {
                 updateNode({
                     ...updatedItem,
@@ -202,7 +274,6 @@ export default function Sidebar(props) {
                     name: updatedItem[config.nameField]
                 });
             },
-
             onDeleted: ({ id, ...rest }) => {
                 const parentId = rest[config.parentIdField];
                 deleteChildFromParent(parentId, config.parentType, id);
@@ -210,7 +281,6 @@ export default function Sidebar(props) {
         };
     };
 
-    // Конфигурация для разных типов сущностей
     const entityConfigs = {
         element: {
             type: 'element',
@@ -241,14 +311,12 @@ export default function Sidebar(props) {
         }
     };
 
-    // Создаем обработчики для каждого типа
     const elementHandlers = createEntityHandlers(entityConfigs.element);
     const pointHandlers = createEntityHandlers(entityConfigs.point);
     const fileHandlers = createEntityHandlers(entityConfigs.file);
 
     // ============= Регистрация слушателей =============
 
-    // Объекты (простые, без фабрики)
     useListener('objectAdded', (newObject) => {
         const objectNode = {
             ...newObject,
@@ -256,32 +324,39 @@ export default function Sidebar(props) {
             name: newObject.objectName,
             children: []
         };
-        setTreeData(prev => [...prev, objectNode]);
+        const newTreeData = [...treeData, objectNode];
+        setTreeData(newTreeData);
+        // Пересортировываем с учетом текущего запроса
+        if (!searchQuery.trim()) {
+            setSortedTreeData(newTreeData);
+        } else {
+            setSortedTreeData(sortObjectsByRelevance([...newTreeData], searchQuery));
+        }
     });
 
     useListener('objectUpdated', (updatedObject) => {
-        updateNode({
+        const updatedNode = {
             ...updatedObject,
             typeLevel: 'object',
             name: updatedObject.objectName
-        });
+        };
+        updateNode(updatedNode);
     });
 
     useListener('objectDeleted', (deletedObjectId) => {
-        setTreeData(prev => prev.filter(obj => obj.id !== deletedObjectId.id));
+        const newTreeData = treeData.filter(obj => obj.id !== deletedObjectId.id);
+        setTreeData(newTreeData);
+        setSortedTreeData(newTreeData);
     });
 
-    // Элементы
     useListener('elementAdded', elementHandlers.onAdded);
     useListener('elementUpdated', elementHandlers.onUpdated);
     useListener('elementDeleted', elementHandlers.onDeleted);
 
-    // Точки
     useListener('pointAdded', pointHandlers.onAdded);
     useListener('pointUpdated', pointHandlers.onUpdated);
     useListener('pointDeleted', pointHandlers.onDeleted);
 
-    // Файлы
     useListener('fileAdded', fileHandlers.onAdded);
     useListener('fileDeleted', fileHandlers.onDeleted);
 
@@ -370,7 +445,38 @@ export default function Sidebar(props) {
                 },
             }}
         >
-            <h2 style={{ textAlign: 'center', cursor: 'pointer' }} onClick={() => navigate('/')}>Segy Acoustic Analysis System</h2>
+            <h2 style={{ textAlign: 'center', cursor: 'pointer' }} onClick={() => navigate('/')}>
+                Segy Acoustic Analysis System
+            </h2>
+
+            <Divider />
+
+            {/* Поле поиска */}
+            <Box sx={{ px: 2, py: 1 }}>
+                <TextField
+                    fullWidth
+                    size="small"
+                    placeholder="Поиск объектов..."
+                    value={searchQuery}
+                    onChange={handleSearchChange}
+                    InputProps={{
+                        startAdornment: (
+                            <InputAdornment position="start">
+                                <SearchIcon fontSize="small" />
+                            </InputAdornment>
+                        ),
+                        endAdornment: searchQuery && (
+                            <InputAdornment position="end">
+                                <ClearIcon
+                                    fontSize="small"
+                                    sx={{ cursor: 'pointer' }}
+                                    onClick={handleClearSearch}
+                                />
+                            </InputAdornment>
+                        )
+                    }}
+                />
+            </Box>
 
             <Divider />
 
@@ -380,7 +486,7 @@ export default function Sidebar(props) {
                         <CircularProgress size={24} style={{ margin: '10px auto' }} />
                     </ListItem>
                 ) : (
-                    treeData.map((node) => (
+                    sortedTreeData.map((node) => (
                         <TreeViewItem
                             key={`${node.typeLevel}_${node.id}`}
                             item={node}
@@ -415,7 +521,7 @@ export default function Sidebar(props) {
                     <Button
                         variant="outlined"
                         startIcon={<PersonIcon />}
-                        onClick={() => {bus.emit('openProfileModal')}}
+                        onClick={() => { bus.emit('openProfileModal') }}
                     >
                         Профиль
                     </Button>

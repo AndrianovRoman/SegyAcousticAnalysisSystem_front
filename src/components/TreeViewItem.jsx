@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import {List, ListItemButton, ListItemText, Collapse, CircularProgress, Button} from '@mui/material';
+import {List, ListItemButton, ListItemText, Collapse, CircularProgress, Button, Badge} from '@mui/material';
 import {
     ExpandLess,
     ExpandMore,
@@ -127,10 +127,12 @@ export default function TreeViewItem({item, level = 0, onEdit, onDelete, onAddCh
 
     const paddingLeft = level * 25 + 5;
     const isObject = item.typeLevel === 'object';
+    const isPoint = item.typeLevel === 'point';
+    const isElement = item.typeLevel === 'element';
 
     const isOwner = item.ownerId === user.id;
     const isNotFile = item.typeLevel !== 'file';
-    const isPileCanAddChild = !(item.typeLevel === 'element' && item.type === 'pile' && item.children.length >= 1);
+    const pileHasPoints = (item.type === 'pile' && item.hasPoints);
 
     const getChildType = () => {
         switch (item.typeLevel) {
@@ -198,7 +200,11 @@ export default function TreeViewItem({item, level = 0, onEdit, onDelete, onAddCh
                 }}
                 onClick={handleClick}
             >
-                <div style={{ display: "flex", alignItems: "center", width: isObject ? "calc(100% - 210px)" : "calc(100% - 150px)" }}>
+                <div style={{
+                    display: "flex",
+                    alignItems: "center",
+                    width: isObject ? "calc(100% - 190px)" : (isElement && pileHasPoints) ? "calc(100% - 95px)" : "calc(100% - 150px)"
+                }}>
                     {getIcon()}
                     <ListItemText
                         primary={item.name || item.elementName || item.objectName}
@@ -224,7 +230,23 @@ export default function TreeViewItem({item, level = 0, onEdit, onDelete, onAddCh
                         </Button>
                     )}
 
-                    {isNotFile && isPileCanAddChild && (
+                    {isPoint && (
+                        <Badge
+                            badgeContent={item.filesCount}
+                            color="primary"
+                            sx={{
+                                '& .MuiBadge-badge': {
+                                    fontSize: '10px',
+                                    height: '18px',
+                                    minWidth: '18px',
+                                    borderRadius: '9px',
+                                    marginRight: '10px'
+                                },
+                            }}
+                        />
+                    )}
+
+                    {isNotFile && !pileHasPoints && (
                         <Button
                             size="small"
                             color="primary"

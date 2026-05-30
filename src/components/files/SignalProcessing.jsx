@@ -71,11 +71,19 @@ export default function SignalProcessing({
 
     return (
         <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
-            <Typography variant="subtitle2" gutterBottom>Обработка сигнала</Typography>
+            <Typography variant="subtitle2" gutterBottom><strong>Обработка сигнала</strong></Typography>
 
-            <Box style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {/* Фильтры первого уровня */}
+            <Box style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {/* Сетка */}
                 <Box style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
+                    <FormControlLabel
+                        control={<Switch checked={showGrid} onChange={(e) => setShowGrid(e.target.checked)} size="small" />}
+                        label="Сетка"
+                    />
+                </Box>
+
+                {/*Удаление постоянной составляющей*/}
+                <Box style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
                     <FormControlLabel
                         control={
                             <Switch
@@ -89,7 +97,10 @@ export default function SignalProcessing({
                             <Typography variant="body2">Удаление постоянной составляющей</Typography>
                         }
                     />
+                </Box>
 
+                {/*Автостатическая поправка*/}
+                <Box style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
                     <FormControlLabel
                         control={
                             <Switch
@@ -103,16 +114,7 @@ export default function SignalProcessing({
                             <Typography variant="body2">Автостатическая поправка</Typography>
                         }
                     />
-
-                    <Divider orientation="vertical" flexItem />
-
-                    <FormControlLabel
-                        control={<Switch checked={showGrid} onChange={(e) => setShowGrid(e.target.checked)} size="small" />}
-                        label="Сетка"
-                    />
                 </Box>
-
-                <Divider />
 
                 {/* Усиление сигнала */}
                 <Box style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>

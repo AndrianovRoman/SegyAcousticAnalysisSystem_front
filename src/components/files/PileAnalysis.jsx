@@ -1,5 +1,3 @@
-
-
 import {
     Box,
     Card,
@@ -23,10 +21,13 @@ export default function PileAnalysis({
                                      }) {
     return (
         <>
-            <Grid item xs={12} md={4}>
+            <Grid item xs={12} style={{ marginBottom: '18px' }}>
                 <Card variant="outlined">
                     <CardContent>
-                        <Typography variant="subtitle2" color="text.secondary" gutterBottom>Маркеры</Typography>
+                        <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                            <strong>Маркеры</strong>
+                        </Typography>
+
                         <Box style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '15px' }}>
                             <TextField
                                 size="small"
@@ -46,7 +47,6 @@ export default function PileAnalysis({
                             </Button>
                         </Box>
 
-                        {/* Поле для маркера конца */}
                         <Box style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                             <TextField
                                 size="small"
@@ -68,10 +68,14 @@ export default function PileAnalysis({
                     </CardContent>
                 </Card>
             </Grid>
-            <Grid item xs={12} md={4}>
+
+            <Grid item xs={12}>
                 <Card variant="outlined">
                     <CardContent>
-                        <Typography variant="subtitle2" color="text.secondary" gutterBottom>Расчеты</Typography>
+                        <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                            <strong>Расчеты</strong>
+                        </Typography>
+
                         <Box style={{ display: 'flex', gap: '5px', marginBottom: '10px' }}>
                             <TextField
                                 size="small"
@@ -94,7 +98,8 @@ export default function PileAnalysis({
                                 </Button>
                             </Tooltip>
                         </Box>
-                        <Box style={{ display: 'flex', gap: '5px'}}>
+
+                        <Box style={{ display: 'flex', gap: '5px' }}>
                             <TextField
                                 size="small"
                                 label="Длина (м)"
@@ -116,11 +121,6 @@ export default function PileAnalysis({
                                 </Button>
                             </Tooltip>
                         </Box>
-                        {pileLength > 0 && (
-                            <Typography variant="body2" color="primary" sx={{ mt: 1, textAlign: 'center' }}>
-                                Длина: {pileLength.toFixed(2)} м
-                            </Typography>
-                        )}
                     </CardContent>
                 </Card>
             </Grid>

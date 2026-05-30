@@ -14,8 +14,8 @@ import Alerts from "./Alerts";
 export default function Layout() {
     return (
         <Box display="flex">
-            <Sidebar width="440px" />
-            <Box flexGrow={1} p={3} style={{ paddingTop: "50px", paddingLeft: "490px" }}>
+            <Sidebar width="380px" />
+            <Box flexGrow={1} p={3} style={{ paddingTop: "0", paddingLeft: "355px" }}>
                 <Outlet />
             </Box>
             <Alerts />

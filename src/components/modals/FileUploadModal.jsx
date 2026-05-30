@@ -17,6 +17,7 @@ export default function FileUploadModal() {
     const [description, setDescription] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [isDragOver, setIsDragOver] = useState(false); // ← НОВОЕ
 
     const bus = useBus();
 
@@ -31,12 +32,38 @@ export default function FileUploadModal() {
         setSelectedFile(null);
         setDescription('');
         setError('');
+        setIsDragOver(false);
     };
 
     const handleFileSelect = (event) => {
         const file = event.target.files[0];
         if (file) {
-            // Проверка на SGY файл
+            if (!file.name.endsWith('.sgy')) {
+                setError('Пожалуйста, выберите файл с расширением .sgy');
+                return;
+            }
+            setSelectedFile(file);
+            setError('');
+        }
+    };
+
+    // ← НОВЫЕ ОБРАБОТЧИКИ
+    const handleDragOver = (event) => {
+        event.preventDefault();
+        setIsDragOver(true);
+    };
+
+    const handleDragLeave = (event) => {
+        event.preventDefault();
+        setIsDragOver(false);
+    };
+
+    const handleDrop = (event) => {
+        event.preventDefault();
+        setIsDragOver(false);
+
+        const file = event.dataTransfer.files[0];
+        if (file) {
             if (!file.name.endsWith('.sgy')) {
                 setError('Пожалуйста, выберите файл с расширением .sgy');
                 return;
@@ -66,7 +93,6 @@ export default function FileUploadModal() {
         formData.append('description', description);
 
         try {
-            // Измененный эндпоинт: /api/points/{pointId}/files/upload
             const response = await api.post(`/api/points/${pointId}/files/upload`, formData, {
                 headers: {
                     'Content-Type': 'multipart/form-data',
@@ -87,15 +113,8 @@ export default function FileUploadModal() {
     };
 
     return (
-        <Dialog
-            open={open}
-            onClose={handleClose}
-            maxWidth="sm"
-            fullWidth
-        >
-            <DialogTitle>
-                Загрузка файла в точку "{pointName}"
-            </DialogTitle>
+        <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
+            <DialogTitle>Загрузка файла в точку "{pointName}"</DialogTitle>
 
             <DialogContent>
                 {error && (
@@ -112,12 +131,18 @@ export default function FileUploadModal() {
                         mt: 2,
                         textAlign: 'center',
                         cursor: 'pointer',
+                        bgcolor: isDragOver ? 'action.hover' : 'transparent',
+                        borderColor: isDragOver ? 'primary.main' : '#ccc',
+                        transition: 'all 0.2s ease',
                         '&:hover': {
                             borderColor: 'primary.main',
                             bgcolor: 'action.hover'
                         }
                     }}
                     onClick={() => document.getElementById('file-input').click()}
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
                 >
                     <input
                         id="file-input"
