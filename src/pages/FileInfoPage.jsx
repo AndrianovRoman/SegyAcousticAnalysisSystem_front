@@ -705,7 +705,6 @@ export default function FileInfoPage() {
             }
 
             setHeatmapData({ matrix, xValues, yValues, minValue, maxValue, points: results });
-            setTimeout(() => drawHeatmap(matrix, xValues, yValues, minValue, maxValue, results), 100);
             bus.emit('success', 'Тепловая карта построена');
 
         } catch (err) {
@@ -714,6 +713,19 @@ export default function FileInfoPage() {
             setIsCalculating(false);
         }
     };
+
+    useEffect(() => {
+        if (!heatmapData) return;
+
+        drawHeatmap(
+            heatmapData.matrix,
+            heatmapData.xValues,
+            heatmapData.yValues,
+            heatmapData.minValue,
+            heatmapData.maxValue,
+            heatmapData.points || []
+        );
+    }, [heatmapData]);
 
     if (loading) {
         return (
