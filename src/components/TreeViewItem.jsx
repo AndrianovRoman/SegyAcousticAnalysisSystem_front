@@ -30,7 +30,7 @@ export default function TreeViewItem({item, level = 0, onEdit, onDelete, onAddCh
 
     // ✅ Дети берутся напрямую из item (из родительского объекта)
     const children = item.children || [];
-    const isSlabElement = item.typeLevel === 'element' && item.type === 'slab';
+    const isSlabElement = item.typeLevel === 'element' && item.type === 'slab' && item.children.length > 0;
     const filesCount = Number(item.filesCount ?? item.fileCount ?? 0);
     const pointHasFiles = item.typeLevel === 'point' && (
         children.some(child => child.typeLevel === 'file') ||
