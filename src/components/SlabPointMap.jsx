@@ -177,7 +177,7 @@ export default function SlabPointMap({ slab, points = [], onAddPoint }) {
                     fontSize="10"
                     fill="#263238"
                 >
-                    {index + 1}
+                    {point.pointName}
                 </text>
             </g>
         );

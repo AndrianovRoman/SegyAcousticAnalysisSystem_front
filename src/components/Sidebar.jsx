@@ -253,6 +253,56 @@ export default function Sidebar(props) {
         setSortedTreeData(prev => deleteFromParent(prev));
     };
 
+    // Обновление количества файлов у точки
+    const updatePointFilesCount = (pointId, delta) => {
+        setTreeData(prevTree => {
+            const updatePointRecursive = (nodes) => {
+                return nodes.map(node => {
+                    // Если нашли точку с нужным ID, обновляем filesCount
+                    if (node.id === pointId && node.typeLevel === 'point') {
+                        const newFilesCount = (node.filesCount || 0) + delta;
+                        return {
+                            ...node,
+                            filesCount: newFilesCount
+                        };
+                    }
+                    // Рекурсивно обходим детей
+                    if (node.children && node.children.length > 0) {
+                        return {
+                            ...node,
+                            children: updatePointRecursive(node.children)
+                        };
+                    }
+                    return node;
+                });
+            };
+            const newTree = updatePointRecursive(prevTree);
+            return newTree;
+        });
+
+        setSortedTreeData(prevSorted => {
+            const updatePointRecursive = (nodes) => {
+                return nodes.map(node => {
+                    if (node.id === pointId && node.typeLevel === 'point') {
+                        const newFilesCount = (node.filesCount || 0) + delta;
+                        return {
+                            ...node,
+                            filesCount: newFilesCount
+                        };
+                    }
+                    if (node.children && node.children.length > 0) {
+                        return {
+                            ...node,
+                            children: updatePointRecursive(node.children)
+                        };
+                    }
+                    return node;
+                });
+            };
+            return updatePointRecursive(prevSorted);
+        });
+    };
+
     // ============= Объединенные обработчики через фабрику =============
 
     const createEntityHandlers = (config) => {
@@ -357,8 +407,20 @@ export default function Sidebar(props) {
     useListener('pointUpdated', pointHandlers.onUpdated);
     useListener('pointDeleted', pointHandlers.onDeleted);
 
-    useListener('fileAdded', fileHandlers.onAdded);
-    useListener('fileDeleted', fileHandlers.onDeleted);
+    useListener('fileAdded', (newFile) => {
+        fileHandlers.onAdded(newFile);
+        if (newFile.pointId) {
+            setTimeout(() => {
+                updatePointFilesCount(newFile.pointId, +1);
+            }, 50);
+        }
+    });
+    useListener('fileDeleted', ({ id, pointId }) => {
+        fileHandlers.onDeleted({ id, pointId });
+        if (pointId) {
+            updatePointFilesCount(pointId, -1);
+        }
+    });
 
     // ============= Общие обработчики =============
     const addClick = () => {

@@ -31,13 +31,8 @@ export default function TreeViewItem({item, level = 0, onEdit, onDelete, onAddCh
     // ✅ Дети берутся напрямую из item (из родительского объекта)
     const children = item.children || [];
     const isSlabElement = item.typeLevel === 'element' && item.type === 'slab' && item.children.length > 0;
-    const filesCount = Number(item.filesCount ?? item.fileCount ?? 0);
-    const pointHasFiles = item.typeLevel === 'point' && (
-        children.some(child => child.typeLevel === 'file') ||
-        (Array.isArray(item.files) && item.files.length > 0) ||
-        filesCount > 0 ||
-        item.hasFiles === true
-    );
+
+    const pointHasFiles = item.typeLevel === 'point' && item.filesCount > 0;
     const hasChildren = children.length > 0;
     const canExpand = hasChildren || isSlabElement;
 
@@ -50,7 +45,6 @@ export default function TreeViewItem({item, level = 0, onEdit, onDelete, onAddCh
         try {
             const newChildren = await onChildrenLoaded(item);
 
-            // ✅ Обновляем родительский объект, добавляя детей
             if (onUpdateNode && newChildren && newChildren.length > 0) {
                 onUpdateNode(item, newChildren);
             }
@@ -90,7 +84,7 @@ export default function TreeViewItem({item, level = 0, onEdit, onDelete, onAddCh
                     return <Rectangle fontSize="small" />;
                 }
             case 'point':
-                return <Circle fontSize="small" color={pointHasFiles ? 'primary' : 'inherit'} />;
+                return <Circle fontSize="small" color={pointHasFiles ? "primary" : "error"} />;
             case 'file':
                 return <Description fontSize="small" />;
             default:
@@ -99,10 +93,6 @@ export default function TreeViewItem({item, level = 0, onEdit, onDelete, onAddCh
     };
 
     const getSecondaryText = () => {
-        if (item.typeLevel === 'point') {
-            return `Файлов загружено: ${filesCount}`;
-        }
-
         if (item.typeLevel !== 'element') return null;
 
         try {
