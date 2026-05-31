@@ -555,7 +555,7 @@ export default function FileInfoPage() {
         }
     };
 
-    const drawHeatmap = (matrix, xValues, yValues, minValue, maxValue) => {
+    const drawHeatmap = (matrix, xValues, yValues, minValue, maxValue, sourcePoints = []) => {
         if (!canvasRef.current || !matrix.length || !matrix[0].length) return;
 
         const canvas = canvasRef.current;
@@ -587,6 +587,38 @@ export default function FileInfoPage() {
             ctx.moveTo(0, j * cellHeight);
             ctx.lineTo(width, j * cellHeight);
             ctx.stroke();
+        }
+
+        if (sourcePoints.length > 0 && xValues.length > 0 && yValues.length > 0) {
+            const minX = Math.min(...xValues);
+            const maxX = Math.max(...xValues);
+            const minY = Math.min(...yValues);
+            const maxY = Math.max(...yValues);
+            const xRange = maxX - minX;
+            const yRange = maxY - minY;
+            const radius = Math.max(4, Math.min(width, height) * 0.012);
+
+            sourcePoints.forEach((point) => {
+                const x = xRange === 0
+                    ? width / 2
+                    : radius + ((point.x - minX) / xRange) * (width - radius * 2);
+                const y = yRange === 0
+                    ? height / 2
+                    : radius + ((point.y - minY) / yRange) * (height - radius * 2);
+
+                ctx.beginPath();
+                ctx.arc(x, y, radius, 0, Math.PI * 2);
+                ctx.fillStyle = '#ffffff';
+                ctx.fill();
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = '#111111';
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.arc(x, y, radius * 0.35, 0, Math.PI * 2);
+                ctx.fillStyle = '#111111';
+                ctx.fill();
+            });
         }
     };
 
@@ -670,7 +702,7 @@ export default function FileInfoPage() {
                         default: value = calculateEnergy(signal, dt);
                     }
 
-                    results.push({ x: point.x, y: point.y, value: value });
+                    results.push({ x: point.x, y: point.y, value: value, name: point.name });
                 } catch (err) {
                     console.error(`Ошибка обработки точки ${point.id}:`, err);
                 }
@@ -697,8 +729,8 @@ export default function FileInfoPage() {
                 return;
             }
 
-            setHeatmapData({ matrix, xValues, yValues, minValue, maxValue });
-            setTimeout(() => drawHeatmap(matrix, xValues, yValues, minValue, maxValue), 100);
+            setHeatmapData({ matrix, xValues, yValues, minValue, maxValue, points: results });
+            setTimeout(() => drawHeatmap(matrix, xValues, yValues, minValue, maxValue, results), 100);
             bus.emit('success', 'Тепловая карта построена');
 
         } catch (err) {
