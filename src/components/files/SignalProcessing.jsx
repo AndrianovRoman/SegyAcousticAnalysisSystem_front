@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { Box, Paper, Typography, TextField, Button, FormControlLabel, Switch, Divider } from '@mui/material';
-import { TrendingUp as GainIcon, Equalizer as CorrectionIcon, RemoveCircle as DcIcon, AutoFixHigh as StaticIcon } from '@mui/icons-material';
 
 export default function SignalProcessing({
                                              gainValue, setGainValue,
